@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Poker — Conseiller Hold'em</title>
+<meta name="theme-color" content="#0e2a1f">
+<style>
+:root{
+  --bg:#0b1f17; --felt:#12392a; --felt2:#174a36; --line:#2a5e47; --txt:#eef5f0; --mut:#9fbcae;
+  --gold:#e8c35a; --red:#e05555; --green:#3fbf7f; --blue:#4fa3e0; --orange:#e89a3c;
+  --card:#fbfbf7; --cardred:#c8262b; --cardblk:#1b1b1b;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 20px)}
+header{position:sticky;top:0;z-index:5;background:#0b1f17ee;backdrop-filter:blur(6px);display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+header h1{font-size:17px;margin:0;flex:1;letter-spacing:.3px}
+header h1 span{color:var(--gold)}
+main{max-width:720px;margin:0 auto;padding:10px}
+.btn{appearance:none;border:1px solid var(--line);background:var(--felt2);color:var(--txt);border-radius:10px;padding:9px 12px;font:inherit;font-weight:600;cursor:pointer;min-height:40px}
+.btn:active{transform:scale(.97)}
+.btn.sm{padding:6px 9px;min-height:32px;font-size:13px}
+.btn.gold{background:var(--gold);color:#1d1600;border-color:var(--gold)}
+.btn.red{background:#5a1e1e;border-color:var(--red)}
+.btn.green{background:#1d5a3c;border-color:var(--green)}
+.btn.blue{background:#1d3f5a;border-color:var(--blue)}
+.btn:disabled{opacity:.35}
+.panel{background:var(--felt);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+.panel h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin:0 0 8px;font-weight:700}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grow{flex:1}
+label.f{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}
+input[type=number],input[type=text],select{background:#0b2a1e;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px;font:inherit;width:100%}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+/* cards */
+.cards{display:flex;gap:6px;justify-content:center}
+.slot{width:46px;height:64px;border-radius:7px;border:2px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:20px;cursor:pointer;background:#0b2a1e}
+.slot.need{border-color:var(--gold);color:var(--gold);animation:pulse 1.4s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 3px #e8c35a44}}
+.pc{width:46px;height:64px;border-radius:7px;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;cursor:pointer;box-shadow:0 2px 4px #0006;line-height:1}
+.pc .r{font-size:20px}.pc .s{font-size:20px}
+.pc.red{color:var(--cardred)}.pc.blk{color:var(--cardblk)}
+.pc.d{color:#1f5fc4}.pc.c{color:#1d8a3a}
+.tablebar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.pot{font-size:22px;font-weight:800;color:var(--gold)}
+.street{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:1px}
+.lbl{font-size:12px;color:var(--mut);text-align:center;margin:8px 0 4px}
+/* players */
+.pl{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:center;padding:8px;border-radius:10px;border:1px solid transparent;margin-bottom:4px}
+.pl.act{border-color:var(--gold);background:#e8c35a14}
+.pl.out{opacity:.4}
+.pl.hero .nm{color:var(--gold)}
+.pos{font-size:11px;font-weight:800;padding:3px 6px;border-radius:6px;background:#0b2a1e;border:1px solid var(--line);min-width:44px;text-align:center}
+.pos.btnpos{background:#fff;color:#000}
+.nm{font-weight:700}
+.stk{font-size:12px;color:var(--mut)}
+.bet{font-weight:800;color:var(--gold);text-align:right}
+.st{font-size:11px;color:var(--mut);text-align:right}
+.rng{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mut)}
+.rng input{flex:1;accent-color:var(--gold)}
+.rng .tag{cursor:pointer;padding:2px 6px;border-radius:6px;border:1px solid var(--line);white-space:nowrap}
+.rng .tag.man{border-color:var(--orange);color:var(--orange)}
+/* action bar */
+.toact{font-size:15px;margin-bottom:8px}
+.toact b{color:var(--gold)}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.raise{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.raise input{width:110px;flex:0 0 auto}
+/* advice */
+.adv{border-radius:14px;padding:12px;margin-bottom:10px;border:2px solid var(--line);background:#0e3125}
+.adv .rec{font-size:24px;font-weight:900;letter-spacing:.5px}
+.adv.FOLD{border-color:var(--red)}.adv.FOLD .rec{color:var(--red)}
+.adv.CHECK{border-color:var(--blue)}.adv.CHECK .rec{color:var(--blue)}
+.adv.CALL{border-color:var(--green)}.adv.CALL .rec{color:var(--green)}
+.adv.BET,.adv.RAISE,.adv.ALLIN{border-color:var(--gold)}.adv.BET .rec,.adv.RAISE .rec,.adv.ALLIN .rec{color:var(--gold)}
+.eqbar{height:10px;border-radius:5px;background:#0b2a1e;overflow:hidden;margin:8px 0;position:relative}
+.eqbar i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--gold))}
+.eqbar u{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--red)}
+table.k{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0}
+table.k td{padding:4px 2px;border-bottom:1px solid #2a5e4755}
+table.k td:last-child{text-align:right;font-weight:700}
+.why{margin:6px 0 0;padding-left:18px;font-size:14px}
+.why li{margin:3px 0}
+.alt{font-size:13px;color:var(--mut);margin-top:6px}
+.muted{color:var(--mut);font-size:13px}
+.log{font-size:13px;color:var(--mut);max-height:180px;overflow:auto}
+.log div{padding:2px 0;border-bottom:1px solid #2a5e4733}
+.log b{color:var(--txt)}
+/* picker modal */
+.modal{position:fixed;inset:0;background:#000a;z-index:20;display:none;align-items:flex-end;justify-content:center}
+.modal.on{display:flex}
+.sheet{background:var(--felt);border-top:1px solid var(--line);border-radius:16px 16px 0 0;padding:12px;width:100%;max-width:720px;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+.pick{display:grid;grid-template-columns:repeat(13,1fr);gap:3px}
+.pick .pc{width:auto;height:44px;font-size:13px}
+.pick .pc .r,.pick .pc .s{font-size:14px}
+.pick .pc.used{opacity:.15;pointer-events:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:8px 12px;border-radius:20px;border:1px solid var(--line);background:#0b2a1e;cursor:pointer;font-weight:600}
+.chip.on{background:var(--gold);color:#1d1600;border-color:var(--gold)}
+.setp{display:grid;grid-template-columns:auto 1fr 90px auto auto;gap:6px;align-items:center;font-size:13px}
+.setp .h{color:var(--mut);font-size:11px}
+.hidden{display:none!important}
+body.auto main>section:not(#pAuto){display:none}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--mut);border-top-color:transparent;border-radius:50%;animation:sp 1s linear infinite;vertical-align:-1px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>♠ Poker <span>conseiller</span></h1>
+  <button class="btn sm" id="bAuto" title="Lecture automatique de l'écran">📺 Écran</button>
+  <button class="btn sm" id="bUndo" title="Annuler la dernière action">↶ Annuler</button>
+  <button class="btn sm" id="bSet">⚙︎</button>
+</header>
+<main>
+
+<!-- AUTO (screen reading) -->
+<section class="panel hidden" id="pAuto">
+  <h2>Lecture d'écran</h2>
+  <div class="row">
+    <button class="btn gold grow" id="aStart">▶ Capturer la fenêtre du jeu</button>
+    <button class="btn" id="aStop">■</button>
+    <label class="btn sm" style="display:flex;align-items:center">Image test<input type="file" id="aFile" accept="image/*" hidden></label>
+  </div>
+  <div class="muted" id="aStatus" style="margin:6px 0">Partage l'onglet du jeu (Chrome : onglet « Onglet Chrome »).</div>
+  <div id="aLive"></div>
+  <div id="aAdv"></div>
+  <details id="aCal" style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">Calibration des zones</summary>
+    <p class="muted">Choisis une zone puis trace un rectangle sur l'image. Pour le tableau, trace seulement la 1<sup>re</sup> et la 5<sup>e</sup> carte : les autres sont interpolées. Cartes : englobe le coin rang + couleur (ou toute la carte) en laissant une petite marge autour des symboles. Adversaires : trace la case de tapis de chacun (sans la tienne) — un joueur couché est détecté à sa case grisée. Chaque nouvelle carte t'est demandée une seule fois, ensuite elle est reconnue.</p>
+    <div class="chips" id="aZoneBtns"></div>
+    <div style="position:relative;margin-top:8px;touch-action:none"><canvas id="aCanvas" style="width:100%;border-radius:8px;background:#000;display:block"></canvas></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn sm" id="aClearZone">Effacer la zone choisie</button>
+      <button class="btn sm red" id="aClearLib">Oublier les cartes apprises</button>
+      <span class="muted" id="aLibInfo"></span>
+    </div>
+  </details>
+  <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">Réglages</summary>
+    <div class="grid3" style="margin-top:8px">
+      <label class="f">Grosse blinde<input type="number" id="aBB" step="any"></label>
+      <label class="f">Style des bots<select id="aStyle"><option value="0.25">Serrés</option><option value="0.5">Normaux</option><option value="0.8">Larges</option></select></label>
+      <label class="f">Joueur couché =<select id="aFoldMode"><option value="light">case plus claire</option><option value="dark">case plus sombre</option><option value="none">ignorer</option></select></label>
+    </div>
+    <div class="grid3" style="margin-top:8px">
+      <label class="f">Fréquence (ms)<input type="number" id="aInt" step="100" min="200"></label>
+      <label class="f">Seuil reconnaissance (0,80–0,95)<input type="number" id="aThr" step="0.01" min="0.5" max="0.99"></label>
+      <label class="f">Format des nombres<select id="aNum"><option value="en">1,960 (anglais)</option><option value="fr">1 960 / 1,5 (français)</option></select></label>
+    </div>
+  </details>
+</section>
+
+<!-- SETTINGS -->
+<section class="panel hidden" id="pSet">
+  <h2>Réglages de la table</h2>
+  <div class="grid3">
+    <label class="f">Joueurs<select id="sN"></select></label>
+    <label class="f">Petite blinde<input type="number" id="sSB" min="0" step="any"></label>
+    <label class="f">Grosse blinde<input type="number" id="sBB" min="0" step="any"></label>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <label class="f grow">Tapis de départ (pour tous)<input type="number" id="sStack" min="1" step="any"></label>
+    <button class="btn sm" id="bAllStack" style="align-self:flex-end">Appliquer à tous</button>
+  </div>
+  <div class="lbl" style="text-align:left;margin-top:12px">Joueurs — <b>Moi</b> = ta place, <b>BTN</b> = bouton (donneur)</div>
+  <div class="setp" id="setPlayers"></div>
+  <div class="row" style="margin-top:10px">
+    <button class="btn gold grow" id="bApply">Valider et lancer une main</button>
+    <button class="btn" id="bCloseSet">Fermer</button>
+  </div>
+  <p class="muted">Les tapis sont mis à jour automatiquement à la fin de chaque main. Tu peux les corriger ici à tout moment.</p>
+</section>
+
+<!-- TABLE -->
+<section class="panel">
+  <div class="tablebar">
+    <div><div class="street" id="tStreet">—</div><div class="pot" id="tPot">Pot 0</div></div>
+    <button class="btn sm gold" id="bNew">Nouvelle main ▸</button>
+  </div>
+  <div class="lbl">Tableau</div>
+  <div class="cards" id="board"></div>
+  <div class="lbl">Ton jeu</div>
+  <div class="cards" id="heroCards"></div>
+  <div class="muted" id="heroInfo" style="text-align:center;margin-top:6px"></div>
+</section>
+
+<!-- ADVICE -->
+<section id="pAdv"></section>
+
+<!-- ACTION -->
+<section class="panel" id="pAct"></section>
+
+<!-- PLAYERS -->
+<section class="panel">
+  <h2>Joueurs <span class="muted" style="text-transform:none;letter-spacing:0">— curseur = range estimée (top % des mains)</span></h2>
+  <div id="players"></div>
+</section>
+
+<section class="panel">
+  <h2>Historique de la main</h2>
+  <div class="log" id="log"></div>
+</section>
+
+<section class="panel muted">
+  <h2>Méthode</h2>
+  Équité par simulation Monte Carlo (≈40 000 tirages) contre la range de chaque adversaire encore en jeu.
+  Les ranges se resserrent automatiquement selon les actions préflop (open, call, 3-bet…) ; après le flop,
+  une mise ou relance d'un adversaire pondère sa range vers les mains qui touchent le tableau (paire réelle ou gros tirage).
+  Tu peux forcer une range avec le curseur (tape l'étiquette pour revenir en auto).
+  Le conseil compare ton équité à la cote du pot ; l'EV affichée ne tient pas compte des tours de mise suivants.
+</section>
+</main>
+
+<div id="toast" style="position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#5a1e1e;border:1px solid var(--red);padding:10px 14px;border-radius:10px;z-index:30;display:none;max-width:90%"></div>
+<div class="modal" id="mPick"><div class="sheet">
+  <div class="row" style="margin-bottom:8px"><b class="grow" id="pickTitle">Choisis une carte</b>
+    <button class="btn sm red" id="bPickClear">Retirer</button><button class="btn sm" id="bPickClose">✕</button></div>
+  <canvas id="pickCrop" class="hidden" style="display:block;margin:0 auto 8px;max-height:110px;border-radius:6px;border:2px solid var(--gold)"></canvas>
+  <div class="pick" id="pickGrid"></div>
+</div></div>
+
+<script>
+/* 169 mains de départ classées (équité vs mains aléatoires, HU 70% / 3-way 30%) */
+window.__HAND_ORDER__=["AA","KK","QQ","JJ","TT","99","88","AKs","AQs","77","AKo","AJs","ATs","AQo","KQs","AJo","KJs","A9s","ATo","KTs","66","KQo","A8s","KJo","A7s","QJs","QTs","KTo","A9o","K9s","A6s","55","A5s","A8o","QJo","A4s","A7o","JTs","A3s","K9o","K8s","Q9s","A5o","K7s","A6o","A2s","QTo","K6s","J9s","44","A4o","Q8s","K8o","JTo","K5s","Q9o","T9s","K7o","K4s","A3o","J8s","J9o","Q7s","K3s","A2o","K6o","Q6s","Q5s","Q8o","T8s","K5o","33","J7s","K2s","98s","J8o","K4o","T9o","Q7o","Q4s","Q3s","T7s","K3o","J6s","T8o","Q6o","Q2s","97s","Q5o","J5s","J7o","T6s","K2o","87s","Q4o","98o","J4s","22","96s","T7o","J3s","J2s","Q3o","Q2o","T5s","86s","J6o","76s","T4s","J5o","97o","95s","T6o","T3s","87o","J4o","85s","T2s","75s","65s","96o","J3o","94s","T5o","J2o","93s","76o","86o","95o","T4o","84s","54s","92s","74s","64s","T3o","85o","65o","83s","53s","75o","T2o","82s","73s","63s","94o","93o","43s","84o","92o","72s","52s","62s","64o","74o","54o","83o","42s","73o","53o","82o","32s","63o","43o","52o","72o","62o","42o","32o"];
+</script>
+<script>
+/* Poker engine — Texas Hold'em evaluator, ranges, Monte Carlo equity.
+   Cards: int 0..51, rank = c>>2 (0='2' .. 12='A'), suit = c&3. */
+(function (root) {
+  'use strict';
+  const RANKS = '23456789TJQKA';
+  const SUITS = 'shdc'; // spades, hearts, diamonds, clubs
+  const SUIT_SYM = ['♠', '♥', '♦', '♣'];
+
+  function cardStr(c) { return RANKS[c >> 2] + SUITS[c & 3]; }
+  function parseCard(s) {
+    const r = RANKS.indexOf(s[0].toUpperCase()), su = SUITS.indexOf(s[1].toLowerCase());
+    if (r < 0 || su < 0) throw new Error('bad card ' + s);
+    return (r << 2) | su;
+  }
+
+  // Highest straight in a 13-bit rank mask; returns top rank index or -1
+  function straightHigh(mask) {
+    for (let h = 12; h >= 4; h--) {
+      const m = 0x1f << (h - 4);
+      if ((mask & m) === m) return h;
+    }
+    if ((mask & 0x100f) === 0x100f) return 3; // wheel A-2-3-4-5
+    return -1;
+  }
+  function topBits(mask, n) {
+    const out = [];
+    for (let r = 12; r >= 0 && out.length < n; r--) if (mask & (1 << r)) out.push(r);
+    return out;
+  }
+  function pack(cat, ks) {
+    let v = cat;
+    for (let i = 0; i < 5; i++) v = v * 16 + (ks[i] !== undefined ? ks[i] : 0);
+    return v;
+  }
+  // Categories: 0 high, 1 pair, 2 two pair, 3 trips, 4 straight, 5 flush, 6 full, 7 quads, 8 straight flush
+  const counts = new Int8Array(13);
+  function evaluate(cards, n) {
+    n = n === undefined ? cards.length : n;
+    counts.fill(0);
+    const sm = [0, 0, 0, 0], sc = [0, 0, 0, 0];
+    let mask = 0;
+    for (let i = 0; i < n; i++) {
+      const c = cards[i], r = c >> 2, s = c & 3;
+      counts[r]++; sm[s] |= 1 << r; sc[s]++; mask |= 1 << r;
+    }
+    let fs = -1;
+    for (let s = 0; s < 4; s++) if (sc[s] >= 5) fs = s;
+    if (fs >= 0) {
+      const sh = straightHigh(sm[fs]);
+      if (sh >= 0) return pack(8, [sh]);
+    }
+    let quad = -1, trips = [], pairs = [];
+    for (let r = 12; r >= 0; r--) {
+      if (counts[r] === 4) quad = r;
+      else if (counts[r] === 3) trips.push(r);
+      else if (counts[r] === 2) pairs.push(r);
+    }
+    if (quad >= 0) return pack(7, [quad, topBits(mask & ~(1 << quad), 1)[0]]);
+    if (trips.length && (trips.length > 1 || pairs.length)) {
+      const p = trips.length > 1 ? Math.max(trips[1], pairs.length ? pairs[0] : -1) : pairs[0];
+      return pack(6, [trips[0], p]);
+    }
+    if (fs >= 0) return pack(5, topBits(sm[fs], 5));
+    const sh = straightHigh(mask);
+    if (sh >= 0) return pack(4, [sh]);
+    if (trips.length) return pack(3, [trips[0]].concat(topBits(mask & ~(1 << trips[0]), 2)));
+    if (pairs.length >= 2) return pack(2, [pairs[0], pairs[1], topBits(mask & ~(1 << pairs[0]) & ~(1 << pairs[1]), 1)[0]]);
+    if (pairs.length === 1) return pack(1, [pairs[0]].concat(topBits(mask & ~(1 << pairs[0]), 3)));
+    return pack(0, topBits(mask, 5));
+  }
+  function category(score) { return Math.floor(score / 1048576); }
+
+  const RANK_FR = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'valet', 'dame', 'roi', 'as'];
+  const RANK_FR_PL = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'valets', 'dames', 'rois', 'as'];
+  function describe(score) {
+    const cat = category(score);
+    const k = []; let v = score;
+    for (let i = 0; i < 5; i++) { k.unshift(v % 16); v = Math.floor(v / 16); }
+    switch (cat) {
+      case 8: return k[0] === 12 ? 'Quinte flush royale' : 'Quinte flush hauteur ' + RANK_FR[k[0]];
+      case 7: return 'Carré de ' + RANK_FR_PL[k[0]];
+      case 6: return 'Full aux ' + RANK_FR_PL[k[0]] + ' par les ' + RANK_FR_PL[k[1]];
+      case 5: return 'Couleur hauteur ' + RANK_FR[k[0]];
+      case 4: return 'Quinte hauteur ' + RANK_FR[k[0]];
+      case 3: return 'Brelan de ' + RANK_FR_PL[k[0]];
+      case 2: return 'Deux paires, ' + RANK_FR_PL[k[0]] + ' et ' + RANK_FR_PL[k[1]];
+      case 1: return 'Paire de ' + RANK_FR_PL[k[0]];
+      default: return 'Hauteur ' + RANK_FR[k[0]];
+    }
+  }
+
+  // Draw detection (hero cards + board, board 3 or 4 cards)
+  function draws(cards) {
+    const sc = [0, 0, 0, 0], sm = [0, 0, 0, 0]; let mask = 0;
+    for (const c of cards) { sc[c & 3]++; sm[c & 3] |= 1 << (c >> 2); mask |= 1 << (c >> 2); }
+    const res = { flushDraw: false, oesd: false, gutshot: false, outsStraight: 0 };
+    const cur = evaluate(cards);
+    const curCat = category(cur);
+    if (curCat < 5) for (let s = 0; s < 4; s++) if (sc[s] === 4) res.flushDraw = true;
+    if (curCat < 4 && straightHigh(mask) < 0) {
+      let outs = 0;
+      for (let r = 0; r < 13; r++) {
+        if (mask & (1 << r)) continue;
+        if (straightHigh(mask | (1 << r)) >= 0) outs++;
+      }
+      res.outsStraight = outs; // distinct ranks completing a straight
+      if (outs >= 2) res.oesd = true; else if (outs === 1) res.gutshot = true;
+    }
+    return res;
+  }
+
+  // ---- Starting hand classes (169) ----
+  // class index: pairs 'AA', suited 'AKs', offsuit 'AKo'
+  function classOf(c1, c2) {
+    let r1 = c1 >> 2, r2 = c2 >> 2;
+    if (r1 < r2) { const t = r1; r1 = r2; r2 = t; }
+    if (r1 === r2) return RANKS[r1] + RANKS[r2];
+    return RANKS[r1] + RANKS[r2] + (((c1 & 3) === (c2 & 3)) ? 's' : 'o');
+  }
+
+  // Ordering of the 169 hands, best first (preflop equity vs one random hand, precomputed)
+  const HAND_ORDER = root.__HAND_ORDER__ || null;
+  let PCT = null; // class -> cumulative percentile (0..1) including the class
+  function buildPct(order) {
+    PCT = {};
+    let cum = 0;
+    for (const h of order) {
+      const combos = h.length === 2 ? 6 : (h[2] === 's' ? 4 : 12);
+      cum += combos;
+      PCT[h] = cum / 1326;
+    }
+  }
+  function handPct(c1, c2) { return PCT[classOf(c1, c2)]; }
+
+  // ---- RNG ----
+  let seed = (Date.now() ^ 0x9e3779b9) >>> 0;
+  function rnd() { // xorshift32
+    seed ^= seed << 13; seed >>>= 0; seed ^= seed >>> 17; seed ^= seed << 5; seed >>>= 0;
+    return seed / 4294967296;
+  }
+
+  /* Build weighted combo list for an opponent.
+     opp: { range: 0..1 (top fraction), post: 0 none / 1 call / 2 bet / 3 raise }
+     dead: Set of known cards, board: array */
+  const POST_FILTER = [0, 0.5, 0.7, 0.85];
+  function oppCombos(opp, dead, board) {
+    const list = [], w = [];
+    const pFilter = POST_FILTER[opp.post || 0] || 0;
+    for (let a = 0; a < 52; a++) {
+      if (dead.has(a)) continue;
+      for (let b = a + 1; b < 52; b++) {
+        if (dead.has(b)) continue;
+        const pct = handPct(a, b);
+        // partial inclusion of the boundary class keeps the slider smooth
+        if (pct - classCombos(a, b) / 1326 >= opp.range) continue;
+        let weight = 1;
+        if (pct > opp.range) weight = (opp.range - (pct - classCombos(a, b) / 1326)) / (classCombos(a, b) / 1326);
+        if (pFilter > 0 && board.length >= 3) {
+          const cs = [a, b].concat(board);
+          const sc = evaluate(cs);
+          const boardOnly = board.length >= 5 ? evaluate(board) : -1;
+          let connects = category(sc) >= 1 && (boardOnly < 0 || sc > boardOnly);
+          // a pair made only by the board does not count
+          if (connects && category(sc) === 1 && board.length >= 3) {
+            const pr = Math.floor(sc / 65536) % 16;
+            if ((a >> 2) !== pr && (b >> 2) !== pr) connects = false;
+          }
+          if (!connects && board.length < 5) {
+            const d = draws(cs);
+            if (d.flushDraw || d.oesd) connects = true;
+          }
+          if (!connects) weight *= (1 - pFilter);
+        }
+        if (weight > 0) { list.push(a * 64 + b); w.push(weight); }
+      }
+    }
+    // cumulative
+    const cum = new Float64Array(w.length);
+    let s = 0;
+    for (let i = 0; i < w.length; i++) { s += w[i]; cum[i] = s; }
+    return { list, cum, total: s };
+  }
+  function classCombos(a, b) {
+    if ((a >> 2) === (b >> 2)) return 6;
+    return ((a & 3) === (b & 3)) ? 4 : 12;
+  }
+  function sampleCombo(cl) {
+    const x = rnd() * cl.total;
+    let lo = 0, hi = cl.cum.length - 1;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (cl.cum[m] < x) lo = m + 1; else hi = m; }
+    return cl.list[lo];
+  }
+
+  /* Monte Carlo equity.
+     hero: [c1,c2], board: [..], opps: [{range, post}], iters
+     returns { equity, win, tie, iters } */
+  function prepare(hero, board, opps) {
+    const dead = new Set(hero.concat(board));
+    return opps.map(o => oppCombos(o, dead, board));
+  }
+  function equity(hero, board, opps, iters, pre) {
+    const dead = new Set(hero.concat(board));
+    const cls = pre || opps.map(o => oppCombos(o, dead, board));
+    for (const cl of cls) if (cl.total <= 0) return null;
+    const deckBase = [];
+    for (let c = 0; c < 52; c++) if (!dead.has(c)) deckBase.push(c);
+    const used = new Uint8Array(52);
+    const hand = new Array(7);
+    const need = 5 - board.length;
+    let eq = 0, wins = 0, ties = 0, done = 0;
+    const oppCards = new Array(opps.length * 2);
+    for (let it = 0; it < iters; it++) {
+      used.fill(0);
+      let ok = true;
+      for (let i = 0; i < cls.length; i++) {
+        let tries = 0, a, b;
+        do {
+          const v = sampleCombo(cls[i]);
+          a = v >> 6; b = v & 63; tries++;
+        } while ((used[a] || used[b]) && tries < 50);
+        if (used[a] || used[b]) { ok = false; break; }
+        used[a] = used[b] = 1;
+        oppCards[2 * i] = a; oppCards[2 * i + 1] = b;
+      }
+      if (!ok) continue;
+      // complete the board
+      const full = board.slice();
+      let k = 0;
+      while (k < need) {
+        const c = deckBase[(rnd() * deckBase.length) | 0];
+        if (used[c]) continue;
+        used[c] = 1; full.push(c); k++;
+      }
+      for (let i = 0; i < 5; i++) hand[i + 2] = full[i];
+      hand[0] = hero[0]; hand[1] = hero[1];
+      const hs = evaluate(hand, 7);
+      let best = -1, nBest = 0;
+      for (let i = 0; i < opps.length; i++) {
+        hand[0] = oppCards[2 * i]; hand[1] = oppCards[2 * i + 1];
+        const s = evaluate(hand, 7);
+        if (s > best) { best = s; nBest = 1; } else if (s === best) nBest++;
+      }
+      if (hs > best) { eq += 1; wins++; }
+      else if (hs === best) { eq += 1 / (nBest + 1); ties++; }
+      done++;
+    }
+    return { equity: done ? eq / done : 0, win: done ? wins / done : 0, tie: done ? ties / done : 0, iters: done };
+  }
+
+  const api = { RANKS, SUITS, SUIT_SYM, cardStr, parseCard, evaluate, category, describe, draws,
+    classOf, buildPct, handPct, equity, prepare, oppCombos, setSeed: s => { seed = s >>> 0 || 1; } };
+  if (HAND_ORDER) buildPct(HAND_ORDER);
+  root.PokerEngine = api;
+  if (typeof module !== 'undefined') module.exports = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+'use strict';
+const E = window.PokerEngine;
+const $ = id => document.getElementById(id);
+const fmt = v => { v = Math.round(v * 100) / 100; return (Math.abs(v) >= 1000 ? v.toLocaleString('fr-FR') : String(v).replace('.', ',')); };
+const pct = v => (v * 100).toFixed(1).replace('.', ',') + ' %';
+const STREETS = ['Préflop', 'Flop', 'Turn', 'River', 'Abattage'];
+const OPEN = { 'UTG': .12, 'UTG+1': .14, 'UTG+2': .16, 'MP': .18, 'LJ': .20, 'HJ': .24, 'CO': .30, 'BTN': .45, 'SB': .38, 'BB': .50, 'BTN/SB': .80 };
+const MIDPOS = ['UTG', 'UTG+1', 'UTG+2', 'MP', 'LJ', 'HJ', 'CO'];
+
+/* ---------------- STATE ---------------- */
+let S;
+let hist = [];
+function defaultState() {
+  const n = 6;
+  return {
+    cfg: { n, sb: 1, bb: 2, stack: 200, hero: 0, button: n - 1 },
+    players: Array.from({ length: n }, (_, i) => ({ name: i === 0 ? 'Moi' : 'Joueur ' + (i + 1), stack: 200 })),
+    phase: 'idle', street: 0, board: [], hero: [], curBet: 0, minRaise: 2, toAct: -1, raisesPre: 0, log: [], pots: null, potIdx: 0, sel: []
+  };
+}
+let toastT; function toast(m) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(() => t.style.display = 'none', 3000); }
+function save() { try { localStorage.setItem('pokerAdvisor', JSON.stringify(S)); } catch (e) { } }
+function load() {
+  try { const t = localStorage.getItem('pokerAdvisor'); if (t) { S = JSON.parse(t); return; } } catch (e) { }
+  S = defaultState();
+}
+function snapshot() { hist.push(JSON.stringify(S)); if (hist.length > 200) hist.shift(); }
+function undo() { if (!hist.length) return; S = JSON.parse(hist.pop()); save(); render(); }
+
+/* ---------------- HELPERS ---------------- */
+const P = () => S.players;
+const potTotal = () => P().reduce((a, p) => a + (p.total || 0), 0);
+const inHand = () => P().filter(p => p.inHand);
+function ableIdx() { return P().map((p, i) => i).filter(i => P()[i].inHand && !P()[i].allIn); }
+function nextFrom(i, pred) { const n = P().length; for (let k = 1; k <= n; k++) { const j = (i + k) % n; if (pred(P()[j], j)) return j; } return -1; }
+function seatsFromButton() { // active seats, starting with button
+  const n = P().length, out = [];
+  for (let k = 0; k < n; k++) { const j = (S.cfg.button + k) % n; if (P()[j].dealt) out.push(j); }
+  return out;
+}
+function positions() {
+  const order = seatsFromButton(), m = order.length, pos = {};
+  if (m === 2) { pos[order[0]] = 'BTN/SB'; pos[order[1]] = 'BB'; return pos; }
+  pos[order[0]] = 'BTN'; pos[order[1]] = 'SB'; pos[order[2]] = 'BB';
+  const rest = order.slice(3), labels = MIDPOS.slice(MIDPOS.length - rest.length);
+  if (rest.length > MIDPOS.length) labels.unshift(...Array(rest.length - MIDPOS.length).fill('UTG'));
+  rest.forEach((j, k) => pos[j] = labels[k] || 'MP');
+  return pos;
+}
+function log(t) { S.log.push(t); }
+function boardNeed() { return [0, 3, 4, 5, 5][S.street]; }
+function rangeOf(p) { return p.manual ? p.manRange : p.autoRange; }
+
+/* ---------------- HAND FLOW ---------------- */
+function startHand(rotate) {
+  snapshot();
+  const n = P().length;
+  if (rotate) {
+    // move button to next player with chips
+    const nb = nextFrom(S.cfg.button, p => p.stack > 0);
+    if (nb >= 0) S.cfg.button = nb;
+  }
+  P().forEach(p => Object.assign(p, { dealt: p.stack > 0, inHand: p.stack > 0, allIn: false, bet: 0, total: 0, acted: false, autoRange: 1, manRange: 1, manual: false, post: 0 }));
+  if (inHand().length < 2) { toast('Il faut au moins 2 joueurs avec des jetons.'); hist.pop(); return; }
+  if (!P()[S.cfg.button].dealt) S.cfg.button = nextFrom(S.cfg.button, p => p.dealt);
+  Object.assign(S, { phase: 'betting', street: 0, board: [], hero: [], curBet: 0, minRaise: S.cfg.bb, raisesPre: 0, log: [], pots: null, potIdx: 0, sel: [] });
+  const order = seatsFromButton();
+  let sbI, bbI;
+  if (order.length === 2) { sbI = order[0]; bbI = order[1]; } else { sbI = order[1]; bbI = order[2]; }
+  post(sbI, S.cfg.sb, 'petite blinde'); post(bbI, S.cfg.bb, 'grosse blinde');
+  S.curBet = Math.max(P()[sbI].bet, P()[bbI].bet, S.cfg.bb);
+  S.bbI = bbI; S.sbI = sbI;
+  S.toAct = nextFrom(bbI, p => p.inHand && !p.allIn);
+  checkRound(true);
+  save(); render();
+}
+function post(i, amt, what) {
+  const p = P()[i], a = Math.min(amt, p.stack);
+  p.stack -= a; p.bet += a; p.total += a; if (p.stack === 0) p.allIn = true;
+  log(`<b>${p.name}</b> poste la ${what} (${fmt(a)})`);
+}
+function toCallOf(i) { return Math.max(0, S.curBet - P()[i].bet); }
+
+function act(type, amount) {
+  const i = S.toAct; if (i < 0 || S.phase !== 'betting') return;
+  snapshot();
+  const p = P()[i], pos = positions()[i], tc = toCallOf(i);
+  const raisesBefore = S.raisesPre;
+  let verb = '';
+  if (type === 'allin') { amount = p.bet + p.stack; type = amount > S.curBet ? 'raise' : 'call'; }
+  if (type === 'fold') { p.inHand = false; verb = 'se couche'; }
+  else if (type === 'check') { verb = 'parole'; }
+  else if (type === 'call') {
+    const a = Math.min(tc, p.stack); p.stack -= a; p.bet += a; p.total += a; if (p.stack === 0) p.allIn = true;
+    verb = `suit ${fmt(a)}` + (p.allIn ? ' (tapis)' : '');
+  } else if (type === 'raise') {
+    amount = Math.min(amount, p.bet + p.stack);
+    const add = amount - p.bet; p.stack -= add; p.bet = amount; p.total += add; if (p.stack === 0) p.allIn = true;
+    const inc = amount - S.curBet;
+    const wasBet = S.curBet === 0 || (S.street === 0 && false);
+    if (inc >= S.minRaise) { S.minRaise = inc; P().forEach((q, j) => { if (j !== i) q.acted = false; }); }
+    S.curBet = Math.max(S.curBet, amount);
+    verb = (S.street > 0 && wasBet ? 'mise ' : 'relance à ') + fmt(amount) + (p.allIn ? ' (tapis)' : '');
+    if (S.street === 0) S.raisesPre++;
+  }
+  p.acted = true;
+  // ---- range model ----
+  if (S.street === 0) {
+    let r = p.autoRange;
+    if (type === 'raise') r = raisesBefore === 0 ? (OPEN[pos] || .2) : raisesBefore === 1 ? .06 : raisesBefore === 2 ? .03 : .015;
+    else if (type === 'call') {
+      if (raisesBefore === 0) r = (i === S.sbI) ? .6 : .40;
+      else if (raisesBefore === 1) r = (i === S.bbI) ? .35 : .22;
+      else if (raisesBefore === 2) r = .08; else r = .035;
+    }
+    p.autoRange = Math.min(p.autoRange, r);
+  } else {
+    const lvl = type === 'raise' ? (S.curBet === amount && tc > 0 ? 3 : 2) : type === 'call' ? 1 : 0;
+    p.post = Math.max(p.post || 0, lvl);
+  }
+  log(`${STREETS[S.street]} · <b>${p.name}</b> (${pos}) ${verb}`);
+  S.toAct = nextFrom(i, q => q.inHand && !q.allIn);
+  checkRound(false);
+  save(); render();
+}
+
+function checkRound() {
+  const live = inHand();
+  if (live.length === 1) { // everyone folded
+    returnUncalled(); P().forEach(p => p.bet = 0);
+    const w = live[0], amt = potTotal();
+    w.stack += amt; log(`<b>${w.name}</b> remporte ${fmt(amt)} (tous les autres se sont couchés)`);
+    P().forEach(p => p.total = 0);
+    S.phase = 'done'; S.toAct = -1; return;
+  }
+  const able = ableIdx();
+  const done = able.every(j => P()[j].acted && P()[j].bet === S.curBet) ||
+    able.length === 0 || (able.length === 1 && P()[able[0]].bet >= S.curBet);
+  if (!done) { if (S.toAct < 0 || !able.includes(S.toAct)) S.toAct = nextFrom(S.toAct < 0 ? S.cfg.button : S.toAct, q => q.inHand && !q.allIn); return; }
+  // round over
+  returnUncalled();
+  P().forEach(p => { p.bet = 0; p.acted = false; });
+  S.curBet = 0; S.minRaise = S.cfg.bb; S.toAct = -1;
+  if (S.street >= 3) { goShowdown(); return; }
+  S.street++; S.phase = 'deal';
+}
+function returnUncalled() {
+  // highest bettor with nobody matching gets the excess back
+  const bets = P().map((p, i) => ({ i, b: p.bet })).sort((a, b) => b.b - a.b);
+  if (bets.length < 2) return;
+  const top = bets[0];
+  const maxOther = Math.max(0, ...P().map((p, i) => i === top.i ? 0 : p.bet));
+  const ex = top.b - maxOther;
+  if (ex > 0) { const p = P()[top.i]; p.stack += ex; p.bet -= ex; p.total -= ex; if (p.stack > 0) p.allIn = false; log(`Mise non suivie rendue à <b>${p.name}</b> (${fmt(ex)})`); }
+}
+function boardEntered() {
+  if (S.phase !== 'deal' || S.board.length < boardNeed()) return;
+  log(`<b>${STREETS[S.street]}</b> : ${S.board.slice(0, boardNeed()).map(E.cardStr).join(' ')}`);
+  S.phase = 'betting';
+  const able = ableIdx();
+  if (able.length <= 1) { // all-in: run it out
+    if (S.street >= 3) { goShowdown(); } else { S.street++; S.phase = 'deal'; }
+    return;
+  }
+  S.toAct = nextFrom(S.cfg.button, q => q.inHand && !q.allIn);
+}
+function goShowdown() {
+  S.phase = 'showdown'; S.street = 4; S.toAct = -1;
+  // build pots by contribution layers
+  const contrib = P().map((p, i) => ({ i, t: p.total, live: p.inHand })).filter(x => x.t > 0);
+  const levels = [...new Set(contrib.filter(x => x.live).map(x => x.t))].sort((a, b) => a - b);
+  const pots = []; let prev = 0;
+  levels.forEach((lv, k) => {
+    let amt = 0;
+    contrib.forEach(x => { amt += Math.max(0, Math.min(x.t, lv) - prev); });
+    // dead money above last live level
+    if (k === levels.length - 1) contrib.forEach(x => { if (x.t > lv) amt += x.t - lv; });
+    const elig = contrib.filter(x => x.live && x.t >= lv).map(x => x.i);
+    pots.push({ amt, elig }); prev = lv;
+  });
+  // merge consecutive pots with same eligibles, show main pot first
+  S.pots = pots.filter(p => p.amt > 0); S.potIdx = 0; S.sel = [];
+  autoAwardSingles();
+}
+function autoAwardSingles() {
+  while (S.pots && S.potIdx < S.pots.length && S.pots[S.potIdx].elig.length === 1) {
+    const pt = S.pots[S.potIdx], p = P()[pt.elig[0]];
+    p.stack += pt.amt; log(`<b>${p.name}</b> récupère ${fmt(pt.amt)}`); S.potIdx++;
+  }
+  if (!S.pots || S.potIdx >= S.pots.length) { P().forEach(p => p.total = 0); S.phase = 'done'; }
+}
+function award() {
+  const pt = S.pots[S.potIdx]; const w = S.sel.filter(i => pt.elig.includes(i));
+  if (!w.length) return;
+  snapshot();
+  const share = pt.amt / w.length;
+  w.forEach(i => P()[i].stack += share);
+  log(`${S.pots.length > 1 ? (S.potIdx === 0 ? 'Pot principal' : 'Pot annexe ' + S.potIdx) : 'Pot'} (${fmt(pt.amt)}) → ${w.map(i => '<b>' + P()[i].name + '</b>').join(', ')}`);
+  S.potIdx++;
+  autoAwardSingles();
+  save(); render();
+}
+
+/* ---------------- ADVICE ---------------- */
+let advToken = 0, advCache = { key: '', res: null };
+function advKey() {
+  return JSON.stringify([S.hero, S.board.slice(0, boardNeed()), P().map(p => [p.inHand, rangeOf(p), p.post]), S.street]);
+}
+function runEquity(cb) {
+  const h = S.cfg.hero, key = advKey();
+  if (advCache.key === key && advCache.res && advCache.res.done) { cb(advCache.res); return; }
+  const tok = ++advToken;
+  // Preflop: only opponents who already entered the pot voluntarily (players still to act fold most of the time)
+  let opps = P().filter((p, i) => i !== h && p.inHand && (S.street > 0 || p.manual || p.autoRange < 1)).map(p => ({ range: rangeOf(p), post: p.post || 0 }));
+  if (!opps.length) opps = [{ range: 1, post: 0 }];
+  const board = S.board.slice(0, boardNeed());
+  let pre;
+  try { pre = E.prepare(S.hero, board, opps); } catch (e) { return; }
+  if (pre.some(c => c.total <= 0)) { cb({ err: 'Range adverse vide avec ces cartes.' }); return; }
+  const TOTAL = 40000, CH = 4000; let acc = 0, wins = 0, ties = 0, n = 0;
+  const step = () => {
+    if (tok !== advToken) return;
+    const r = E.equity(S.hero, board, opps, CH, pre);
+    if (!r) return;
+    acc += r.equity * r.iters; wins += r.win * r.iters; ties += r.tie * r.iters; n += r.iters;
+    const res = { equity: acc / n, win: wins / n, tie: ties / n, iters: n, done: n >= TOTAL * 0.9 || n >= TOTAL, nOpp: opps.length };
+    advCache = { key, res };
+    cb(res);
+    if (n < TOTAL) setTimeout(step, 0); else { res.done = true; }
+  };
+  setTimeout(step, 10);
+}
+
+function decide(eq) {
+  const h = S.cfg.hero, me = P()[h], pos = positions()[h];
+  const tc = toCallOf(h), callAmt = Math.min(tc, me.stack), pot = potTotal();
+  const E_ = eq.equity, nOpp = eq.nOpp, fair = 1 / (nOpp + 1);
+  const potOdds = callAmt > 0 ? callAmt / (pot + callAmt) : 0;
+  const evCall = E_ * (pot + callAmt) - callAmt;
+  const maxTo = me.bet + me.stack, minTo = Math.min(maxTo, S.curBet + Math.max(S.minRaise, S.cfg.bb));
+  const bb = S.cfg.bb;
+  const why = [], alt = [];
+  let rec = 'CHECK', amt = 0;
+  const clampRaise = v => { v = Math.max(minTo, Math.round(v * 2) / 2); if (v >= maxTo * 0.6) return maxTo; return Math.min(v, maxTo); };
+
+  if (S.street === 0) {
+    const p = E.handPct(S.hero[0], S.hero[1]), cls = E.classOf(S.hero[0], S.hero[1]);
+    const open = OPEN[pos] || .2;
+    const limpers = P().filter((q, i) => i !== h && q.inHand && i !== S.bbI && q.total === bb && S.raisesPre === 0).length;
+    why.push(`${cls} est dans le top ${Math.round(p * 100)} % des mains de départ.`);
+    if (S.raisesPre === 0) {
+      if (tc === 0) { // BB option
+        if (p <= .12) { rec = 'RAISE'; amt = clampRaise((3 + limpers) * bb); why.push('Main forte en grosse blinde : on relance pour isoler les limpers.'); alt.push('Checker reste correct pour cacher ta force.'); }
+        else { rec = 'CHECK'; why.push('Tour gratuit : aucune raison de payer plus avec cette main.'); }
+      } else {
+        const thr = limpers ? open * .75 : open;
+        if (p <= thr) {
+          rec = 'RAISE'; amt = clampRaise((pos === 'SB' ? 3 : 2.5) * bb + limpers * bb);
+          why.push(`Seuil d'ouverture en ${pos} : top ${Math.round(thr * 100)} %${limpers ? ' (resserré à cause des limpers)' : ''}. Ta main passe.`);
+          why.push(`Relance standard : ${pos === 'SB' ? '3' : '2,5'} BB${limpers ? ' + 1 BB par limper' : ''}.`);
+        } else if (limpers && p <= .45 && (cls.length === 2 || cls[2] === 's') && potOdds < .25) {
+          rec = 'CALL'; why.push('Main spéculative (paire / assortie) avec des limpers : bonne cote implicite pour suivre.');
+        } else if (pos === 'SB' && limpers === 0 && p <= .6 && potOdds <= .26) {
+          rec = 'CALL'; why.push('Compléter la petite blinde est acceptable avec une main jouable ; relancer serait plus agressif.');
+        } else { rec = 'FOLD'; why.push(`Hors du seuil d'ouverture en ${pos} (top ${Math.round(open * 100)} %).`); }
+      }
+    } else if (S.raisesPre === 1) {
+      const late = ['BTN', 'CO', 'BTN/SB'].includes(pos);
+      if (p <= .045 || (late && p <= .07)) {
+        rec = 'RAISE'; amt = clampRaise(S.curBet * (late ? 3 : 3.8));
+        why.push('Main premium face à une relance : 3-bet pour la valeur.');
+        why.push(`Taille : ${late ? '3×' : '≈4×'} la relance (${late ? 'en position' : 'hors de position'}).`);
+      } else if (E_ >= potOdds + .04 && p <= .30) {
+        rec = 'CALL'; why.push(`Ton équité (${pct(E_)}) dépasse la cote du pot (${pct(potOdds)}) avec une marge pour jouer hors des tours suivants.`);
+      } else { rec = 'FOLD'; why.push(E_ < potOdds + .04 ? `Équité ${pct(E_)} trop faible vs la cote de ${pct(potOdds)} (+4 % de marge).` : 'Main trop faible pour suivre une relance.'); }
+    } else if (S.raisesPre === 2) {
+      if (p <= .022) { rec = 'RAISE'; amt = clampRaise(S.curBet * 2.3); why.push('Haut de range (QQ+/AK) : 4-bet.'); }
+      else if (E_ >= potOdds + .02 && p <= .06) { rec = 'CALL'; why.push(`Équité ${pct(E_)} > cote ${pct(potOdds)} contre une range de 3-bet.`); }
+      else { rec = 'FOLD'; why.push('Face à un 3-bet, seules les toutes meilleures mains continuent.'); }
+    } else {
+      if (p <= .012 || (E_ > potOdds + .1 && p <= .03)) { rec = 'ALLIN'; amt = maxTo; why.push('Guerre de relances : AA/KK (ou équivalent) → tapis.'); }
+      else if (E_ >= potOdds) { rec = 'CALL'; why.push(`Équité ${pct(E_)} ≥ cote ${pct(potOdds)}.`); }
+      else { rec = 'FOLD'; why.push('Range adverse ultra serrée, ton équité ne suffit pas.'); }
+    }
+  } else {
+    const k = Math.min(nOpp, 4);
+    const valueT = [0, .62, .48, .40, .35][k], raiseT = [0, .72, .56, .47, .41][k], thinT = valueT - .08;
+    const d = E.draws(S.hero.concat(S.board.slice(0, boardNeed())));
+    const drawing = S.street < 3 && (d.flushDraw || d.oesd);
+    if (tc === 0) {
+      if (E_ >= valueT) { rec = 'BET'; amt = clampRaise(pot * .66); why.push(`Équité ${pct(E_)} ≥ seuil de valeur (${pct(valueT)} à ${nOpp} adv.) : mise ≈ 2/3 du pot.`); if (E_ > .85) alt.push('Main quasi imbattable : checker pour piéger un adversaire agressif est une option.'); }
+      else if (E_ >= thinT) { rec = 'BET'; amt = clampRaise(pot * .33); why.push(`Équité correcte (${pct(E_)}) : petite mise ≈ 1/3 pot pour la valeur et la protection.`); alt.push('Checker est aussi défendable (contrôle du pot).'); }
+      else if (drawing && E_ >= .30 && nOpp <= 2) { rec = 'BET'; amt = clampRaise(pot * .5); why.push(`Tirage (${d.flushDraw ? 'couleur' : 'quinte bilatérale'}) avec ${pct(E_)} d'équité : semi-bluff ≈ 1/2 pot (fold equity + équité).`); alt.push('Checker pour voir la carte suivante gratuitement.'); }
+      else { rec = 'CHECK'; why.push(`Équité ${pct(E_)} sous le seuil de valeur (${pct(thinT)}) : on contrôle le pot.`); }
+    } else {
+      if (E_ >= raiseT && E_ > potOdds) { rec = 'RAISE'; amt = clampRaise(S.curBet * 3); why.push(`Équité ${pct(E_)} ≥ seuil de relance (${pct(raiseT)}) : relance ≈ 3× pour la valeur.`); alt.push('Suivre pour garder les bluffs adverses dans le coup.'); }
+      else if (E_ >= potOdds) { rec = 'CALL'; why.push(`Équité ${pct(E_)} ≥ cote du pot ${pct(potOdds)} : suivre est rentable (EV ${evCall >= 0 ? '+' : ''}${fmt(evCall)}).`); }
+      else {
+        const need = S.street < 3 && drawing ? callAmt / E_ - (pot + callAmt) : Infinity;
+        const effStack = Math.min(me.stack - callAmt, Math.max(0, ...P().filter((q, i) => i !== h && q.inHand).map(q => q.stack)));
+        if (need < effStack * .35) { rec = 'CALL'; why.push(`Cote directe insuffisante (${pct(E_)} < ${pct(potOdds)}), mais il suffit de gagner ≈ ${fmt(need)} de plus quand tu touches (cotes implicites, tapis effectif ${fmt(effStack)}).`); alt.push('Se coucher est le choix prudent si l\'adversaire paie rarement.'); }
+        else { rec = 'FOLD'; why.push(`Équité ${pct(E_)} < cote du pot ${pct(potOdds)} : suivre perd ${fmt(-evCall)} en moyenne.`); }
+      }
+    }
+    if (d.flushDraw || d.oesd || d.gutshot) why.push('Tirages : ' + [d.flushDraw && 'couleur (9 outs)', d.oesd && 'quinte bilatérale (8 outs)', d.gutshot && 'quinte ventrale (4 outs)'].filter(Boolean).join(', ') + '.');
+  }
+  if ((rec === 'RAISE' || rec === 'BET') && amt >= maxTo) rec = 'ALLIN';
+  if (rec === 'CHECK' && tc > 0) rec = 'FOLD';
+  if (rec === 'CALL' && tc === 0) rec = 'CHECK';
+  return { rec, amt, why, alt, potOdds, evCall, tc: callAmt, pot, fair };
+}
+const REC_FR = { FOLD: 'SE COUCHER', CHECK: 'PAROLE', CALL: 'SUIVRE', BET: 'MISER', RAISE: 'RELANCER', ALLIN: 'TAPIS' };
+
+/* ---------------- RENDER ---------------- */
+function cardEl(c, onclick) {
+  const d = document.createElement('div');
+  const s = c & 3;
+  d.className = 'pc ' + ['blk', 'red', 'd', 'c'][s];
+  d.innerHTML = `<span class="r">${E.RANKS[c >> 2] === 'T' ? '10' : E.RANKS[c >> 2]}</span><span class="s">${E.SUIT_SYM[s]}</span>`;
+  if (onclick) d.onclick = onclick;
+  return d;
+}
+function slotEl(need, onclick) { const d = document.createElement('div'); d.className = 'slot' + (need ? ' need' : ''); d.textContent = '+'; d.onclick = onclick; return d; }
+
+function render() {
+  const pos = S.phase === 'idle' ? {} : positions();
+  $('tStreet').textContent = S.phase === 'idle' ? 'Prêt' : S.phase === 'done' ? 'Main terminée' : STREETS[S.street];
+  $('tPot').textContent = 'Pot ' + fmt(potTotal());
+  $('bUndo').disabled = !hist.length;
+  // board
+  const b = $('board'); b.innerHTML = '';
+  for (let k = 0; k < 5; k++) {
+    if (S.board[k] !== undefined) b.appendChild(cardEl(S.board[k], () => openPick('board', k)));
+    else b.appendChild(slotEl(S.phase === 'deal' && k < boardNeed() && k === S.board.length, () => openPick('board', S.board.length)));
+  }
+  const hc = $('heroCards'); hc.innerHTML = '';
+  for (let k = 0; k < 2; k++) {
+    if (S.hero[k] !== undefined) hc.appendChild(cardEl(S.hero[k], () => openPick('hero', k)));
+    else hc.appendChild(slotEl(S.phase !== 'idle' && k === S.hero.length, () => openPick('hero', S.hero.length)));
+  }
+  let info = '';
+  if (S.hero.length === 2) {
+    const bd = S.board.slice(0, Math.min(S.board.length, 5));
+    info = E.classOf(S.hero[0], S.hero[1]) + ` · top ${Math.round(E.handPct(S.hero[0], S.hero[1]) * 100)} %`;
+    if (bd.length >= 3) info = E.describe(E.evaluate(S.hero.concat(bd))) + ' · ' + info;
+  }
+  $('heroInfo').textContent = info;
+  renderPlayers(pos);
+  renderAction(pos);
+  renderAdvice();
+  $('log').innerHTML = S.log.map(t => `<div>${t}</div>`).join('') || '<div>Lance une main avec « Nouvelle main ».</div>';
+  $('log').scrollTop = 1e6;
+}
+function renderPlayers(pos) {
+  const el = $('players'); el.innerHTML = '';
+  P().forEach((p, i) => {
+    const d = document.createElement('div');
+    const isHero = i === S.cfg.hero;
+    d.className = 'pl' + (i === S.toAct ? ' act' : '') + (S.phase !== 'idle' && !p.inHand ? ' out' : '') + (isHero ? ' hero' : '');
+    const status = S.phase === 'idle' ? '' : !p.dealt ? 'absent' : !p.inHand ? 'couché' : p.allIn ? 'TAPIS' : i === S.toAct ? 'à parler' : '';
+    const ps = pos[i] || (i === S.cfg.button ? 'BTN' : '—');
+    d.innerHTML = `<div class="pos ${ps.startsWith('BTN') ? 'btnpos' : ''}">${ps}</div>
+      <div><div class="nm">${esc(p.name)}${isHero ? ' (moi)' : ''}</div><div class="stk">Tapis ${fmt(p.stack)}${p.total ? ' · investi ' + fmt(p.total) : ''}</div></div>
+      <div><div class="bet">${p.bet ? fmt(p.bet) : ''}</div><div class="st">${status}</div></div>`;
+    if (!isHero && ['betting', 'deal'].includes(S.phase) && p.inHand) {
+      const r = rangeOf(p);
+      const rr = document.createElement('div'); rr.className = 'rng';
+      const postTxt = ['', ' · a suivi', ' · a misé', ' · a relancé'][p.post || 0];
+      rr.innerHTML = `<input type="range" min="1" max="100" step="1" value="${Math.round(r * 100)}"><span class="tag ${p.manual ? 'man' : ''}">top ${Math.round(r * 100)} % ${p.manual ? 'manuel' : 'auto'}${postTxt}</span>`;
+      const inp = rr.querySelector('input'), tag = rr.querySelector('.tag');
+      inp.oninput = () => { tag.textContent = `top ${inp.value} % manuel`; tag.classList.add('man'); };
+      inp.onchange = () => { snapshot(); p.manual = true; p.manRange = inp.value / 100; save(); render(); };
+      tag.onclick = () => { if (!p.manual) return; snapshot(); p.manual = false; save(); render(); };
+      d.appendChild(rr);
+    }
+    el.appendChild(d);
+  });
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function renderAction(pos) {
+  const el = $('pAct');
+  if (S.phase === 'idle') { el.innerHTML = `<div class="toact">Règle la table (⚙︎) puis lance une main.</div><button class="btn gold" style="width:100%" onclick="startHand(false)">Lancer la première main</button>`; return; }
+  if (S.phase === 'deal') {
+    const n = boardNeed() - S.board.length;
+    el.innerHTML = `<div class="toact">Saisis ${['', 'le flop', 'le turn', 'la river'][S.street]} : <b>${n} carte${n > 1 ? 's' : ''}</b> à ajouter au tableau.</div>
+      <button class="btn gold" style="width:100%" onclick="openPick('board', S.board.length)">Choisir ${n > 1 ? 'les cartes' : 'la carte'}</button>`;
+    return;
+  }
+  if (S.phase === 'showdown') {
+    const pt = S.pots[S.potIdx];
+    const name = S.pots.length > 1 ? (S.potIdx === 0 ? 'Pot principal' : 'Pot annexe ' + S.potIdx) : 'Pot';
+    el.innerHTML = `<div class="toact">Abattage — <b>${name} : ${fmt(pt.amt)}</b>. Qui gagne ? (plusieurs = partage)</div>
+      <div class="chips">${pt.elig.map(i => `<span class="chip ${S.sel.includes(i) ? 'on' : ''}" data-i="${i}">${esc(P()[i].name)}</span>`).join('')}</div>
+      <button class="btn gold" style="width:100%;margin-top:10px" id="bAward">Attribuer</button>`;
+    el.querySelectorAll('.chip').forEach(c => c.onclick = () => { const i = +c.dataset.i; S.sel = S.sel.includes(i) ? S.sel.filter(x => x !== i) : S.sel.concat(i); render(); });
+    $('bAward').onclick = award;
+    return;
+  }
+  if (S.phase === 'done') { el.innerHTML = `<div class="toact">Main terminée. Les tapis sont à jour.</div><button class="btn gold" style="width:100%" onclick="startHand(true)">Main suivante (bouton → joueur suivant)</button>`; return; }
+  // betting
+  const i = S.toAct, p = P()[i], tc = toCallOf(i);
+  const minTo = Math.min(p.bet + p.stack, S.curBet + Math.max(S.minRaise, S.cfg.bb)), maxTo = p.bet + p.stack, pot = potTotal();
+  const canRaise = p.stack > tc;
+  const lbl = S.curBet === 0 ? 'Miser' : 'Relancer à';
+  el.innerHTML = `<div class="toact">À <b>${esc(p.name)}</b> (${pos[i]}) de parler${tc ? ` — <b>${fmt(Math.min(tc, p.stack))}</b> à suivre` : ''}</div>
+    <div class="acts">
+      <button class="btn red" id="aFold">Se coucher</button>
+      ${tc ? `<button class="btn green" id="aCall">Suivre ${fmt(Math.min(tc, p.stack))}</button>` : `<button class="btn blue" id="aCheck">Parole</button>`}
+    </div>
+    ${canRaise ? `<div class="raise"><span class="muted">${lbl}</span><input type="number" id="aAmt" step="any" min="${minTo}" max="${maxTo}" value="${minTo}">
+      <button class="btn gold sm" id="aRaise">OK</button><button class="btn sm red" id="aAll">Tapis</button></div>
+      <div class="raise">${[['½ pot', .5], ['⅔ pot', .66], ['Pot', 1]].map(([t, f]) => `<button class="btn sm" data-f="${f}">${t}</button>`).join('')}
+      ${S.street === 0 ? [2.5, 3].map(x => `<button class="btn sm" data-x="${x}">${String(x).replace('.', ',')}×</button>`).join('') : ''}</div>` : ''}`;
+  $('aFold').onclick = () => act('fold');
+  if (tc) $('aCall').onclick = () => act('call'); else $('aCheck').onclick = () => act('check');
+  if (canRaise) {
+    const inp = $('aAmt');
+    $('aRaise').onclick = () => { const v = parseFloat(inp.value); if (!(v >= minTo || v >= maxTo)) { toast('Montant minimum : ' + fmt(minTo)); return; } act('raise', Math.min(v, maxTo)); };
+    $('aAll').onclick = () => act('allin');
+    el.querySelectorAll('[data-f]').forEach(btn => btn.onclick = () => { const f = +btn.dataset.f; const callAmt = Math.min(tc, p.stack); inp.value = Math.min(maxTo, Math.max(minTo, Math.round((S.curBet + (pot + callAmt) * f) * 2) / 2)); });
+    el.querySelectorAll('[data-x]').forEach(btn => btn.onclick = () => { const x = +btn.dataset.x; inp.value = Math.min(maxTo, Math.max(minTo, (S.raisesPre === 0 ? S.cfg.bb : S.curBet) * x)); });
+  }
+}
+
+function renderAdvice() {
+  const el = $('pAdv'); const h = S.cfg.hero, me = P()[h];
+  if (S.phase === 'idle' || !me || !me.inHand || S.phase === 'done' || S.phase === 'showdown') { el.innerHTML = ''; advToken++; return; }
+  if (S.hero.length < 2) { el.innerHTML = `<div class="adv"><div class="muted">Saisis tes 2 cartes pour obtenir le conseil.</div></div>`; return; }
+  const boardOk = S.board.length >= boardNeed();
+  if (!boardOk) { el.innerHTML = ''; return; }
+  const myTurn = S.phase === 'betting' && S.toAct === h;
+  el.innerHTML = `<div class="adv"><span class="spin"></span> <span class="muted">Calcul de l'équité…</span></div>`;
+  runEquity(res => {
+    if (res.err) { el.innerHTML = `<div class="adv"><div class="muted">${res.err}</div></div>`; return; }
+    const D = decide(res);
+    const amtTxt = (D.rec === 'BET' || D.rec === 'RAISE' || D.rec === 'ALLIN') ? ' ' + fmt(D.amt) : D.rec === 'CALL' ? ' ' + fmt(D.tc) : '';
+    el.innerHTML = `<div class="adv ${myTurn ? D.rec : ''}">
+      <div class="row"><div class="grow">
+        <div class="muted">${myTurn ? 'Conseil — à toi de parler' : 'Ton équité actuelle (pas encore ton tour)'}</div>
+        ${myTurn ? `<div class="rec">${REC_FR[D.rec]}${amtTxt}</div>` : `<div class="rec" style="color:var(--txt)">${pct(res.equity)}</div>`}
+      </div>${myTurn ? `<button class="btn gold sm" id="bPlay">Jouer ce coup</button>` : ''}</div>
+      <div class="eqbar"><i style="width:${(res.equity * 100).toFixed(1)}%"></i>${D.potOdds ? `<u style="left:${(D.potOdds * 100).toFixed(1)}%"></u>` : ''}</div>
+      <table class="k">
+        <tr><td>Équité (gagne + partage)</td><td>${pct(res.equity)}</td></tr>
+        <tr><td>Gagne / partage</td><td>${pct(res.win)} / ${pct(res.tie)}</td></tr>
+        <tr><td>Adversaires simulés</td><td>${res.nOpp}</td></tr>
+        <tr><td>Part « équitable » à ${res.nOpp + 1} joueurs</td><td>${pct(D.fair)}</td></tr>
+        ${D.tc ? `<tr><td>Cote du pot (${fmt(D.tc)} pour ${fmt(D.pot + D.tc)})</td><td>${pct(D.potOdds)}</td></tr>
+        <tr><td>EV de suivre (ce tour)</td><td style="color:${D.evCall >= 0 ? 'var(--green)' : 'var(--red)'}">${D.evCall >= 0 ? '+' : ''}${fmt(D.evCall)}</td></tr>` : ''}
+        <tr><td>Simulations</td><td>${res.iters.toLocaleString('fr-FR')}${res.done ? '' : ' <span class="spin"></span>'}</td></tr>
+      </table>
+      ${myTurn ? `<ul class="why">${D.why.map(w => `<li>${w}</li>`).join('')}</ul>${D.alt.length ? `<div class="alt">Alternative : ${D.alt.join(' ')}</div>` : ''}` : ''}
+    </div>`;
+    if (myTurn) $('bPlay').onclick = () => {
+      const m = { FOLD: ['fold'], CHECK: ['check'], CALL: ['call'], BET: ['raise', D.amt], RAISE: ['raise', D.amt], ALLIN: ['allin'] }[D.rec];
+      act(m[0], m[1]);
+    };
+  });
+}
+
+/* ---------------- CARD PICKER ---------------- */
+let pickT = null;
+function usedCards() { return new Set(S.hero.concat(S.board)); }
+function openPick(target, idx, cb) {
+  if (target === 'board' && (S.phase === 'idle' || idx >= boardNeed())) return;
+  pickT = { target, idx, cb };
+  $('pickCrop').classList.toggle('hidden', target !== 'learn');
+  if (target === 'learn') {
+    $('pickTitle').textContent = 'Quelle est cette carte ? (apprise une seule fois)';
+    $('bPickClear').classList.add('hidden');
+    const g = $('pickGrid'); g.innerHTML = '';
+    for (let s = 0; s < 4; s++) for (let r = 12; r >= 0; r--) { const c = (r << 2) | s; g.appendChild(cardEl(c, () => { const f = pickT.cb; pickT.cb = null; closePick(); f(c); })); }
+    $('mPick').classList.add('on'); return;
+  }
+  $('pickTitle').textContent = target === 'hero' ? `Ta carte ${idx + 1}` : `Tableau — carte ${idx + 1}`;
+  const arr = target === 'hero' ? S.hero : S.board;
+  $('bPickClear').classList.toggle('hidden', arr[idx] === undefined);
+  const g = $('pickGrid'); g.innerHTML = '';
+  const used = usedCards();
+  for (let s = 0; s < 4; s++) for (let r = 12; r >= 0; r--) {
+    const c = (r << 2) | s;
+    const el = cardEl(c, () => pickCard(c));
+    if (used.has(c) && arr[idx] !== c) el.classList.add('used');
+    g.appendChild(el);
+  }
+  $('mPick').classList.add('on');
+}
+function closePick() { const t = pickT; $('mPick').classList.remove('on'); pickT = null; if (t && t.target === 'learn' && t.cb && t.cb.cancel) t.cb.cancel(); }
+function pickCard(c) {
+  snapshot();
+  const arr = pickT.target === 'hero' ? S.hero : S.board;
+  const max = pickT.target === 'hero' ? 2 : 5;
+  arr[pickT.idx] = c;
+  // compact
+  const comp = arr.filter(x => x !== undefined && x !== null);
+  arr.length = 0; comp.forEach(x => arr.push(x));
+  // continue picking automatically
+  const next = arr.length;
+  const want = pickT.target === 'hero' ? 2 : (S.phase === 'deal' ? boardNeed() : arr.length);
+  if (pickT.target === 'board') boardEntered();
+  save(); render();
+  if (next < want && next < max) openPick(pickT.target, next); else closePick();
+}
+$('bPickClose').onclick = closePick;
+$('bPickClear').onclick = () => {
+  snapshot();
+  const arr = pickT.target === 'hero' ? S.hero : S.board;
+  arr.splice(pickT.idx, 1); save(); closePick(); render();
+};
+$('mPick').onclick = e => { if (e.target.id === 'mPick') closePick(); };
+
+/* ---------------- SETTINGS ---------------- */
+function openSettings() {
+  const s = $('pSet'); s.classList.remove('hidden');
+  $('sN').innerHTML = Array.from({ length: 9 }, (_, k) => `<option ${k + 2 === P().length ? 'selected' : ''}>${k + 2}</option>`).join('');
+  $('sSB').value = S.cfg.sb; $('sBB').value = S.cfg.bb; $('sStack').value = S.cfg.stack;
+  drawSetPlayers();
+  s.scrollIntoView({ behavior: 'smooth' });
+}
+function drawSetPlayers() {
+  const el = $('setPlayers');
+  el.innerHTML = `<div class="h">#</div><div class="h">Nom</div><div class="h">Tapis</div><div class="h">Moi</div><div class="h">BTN</div>` +
+    P().map((p, i) => `<div>${i + 1}</div><input type="text" data-n="${i}" value="${esc(p.name)}"><input type="number" data-s="${i}" value="${p.stack}" step="any">
+    <input type="radio" name="hero" data-h="${i}" ${i === S.cfg.hero ? 'checked' : ''}><input type="radio" name="btn" data-b="${i}" ${i === S.cfg.button ? 'checked' : ''}>`).join('');
+}
+function readSetPlayers() {
+  document.querySelectorAll('[data-n]').forEach(e => P()[+e.dataset.n].name = e.value || ('Joueur ' + (+e.dataset.n + 1)));
+  document.querySelectorAll('[data-s]').forEach(e => P()[+e.dataset.s].stack = Math.max(0, parseFloat(e.value) || 0));
+  document.querySelectorAll('[data-h]').forEach(e => { if (e.checked) S.cfg.hero = +e.dataset.h; });
+  document.querySelectorAll('[data-b]').forEach(e => { if (e.checked) S.cfg.button = +e.dataset.b; });
+}
+$('sN').onchange = () => {
+  readSetPlayers();
+  const n = +$('sN').value, st = parseFloat($('sStack').value) || 200;
+  while (P().length < n) P().push({ name: 'Joueur ' + (P().length + 1), stack: st });
+  P().length = n;
+  if (S.cfg.hero >= n) S.cfg.hero = 0; if (S.cfg.button >= n) S.cfg.button = n - 1;
+  drawSetPlayers();
+};
+$('bAllStack').onclick = () => { const st = parseFloat($('sStack').value) || 200; document.querySelectorAll('[data-s]').forEach(e => e.value = st); };
+$('bApply').onclick = () => {
+  snapshot();
+  readSetPlayers();
+  S.cfg.n = P().length;
+  S.cfg.sb = parseFloat($('sSB').value) || 0; S.cfg.bb = parseFloat($('sBB').value) || 1; S.cfg.stack = parseFloat($('sStack').value) || 200;
+  $('pSet').classList.add('hidden');
+  hist.pop(); startHand(false);
+};
+$('bCloseSet').onclick = () => $('pSet').classList.add('hidden');
+$('bSet').onclick = () => $('pSet').classList.contains('hidden') ? openSettings() : $('pSet').classList.add('hidden');
+$('bUndo').onclick = undo;
+$('bNew').onclick = () => {
+  if (S.phase === 'betting' || S.phase === 'deal' || S.phase === 'showdown') {
+    const bn = $('bNew');
+    if (!bn.dataset.armed) { bn.dataset.armed = '1'; bn.textContent = 'Abandonner la main ?'; setTimeout(() => { delete bn.dataset.armed; bn.textContent = 'Nouvelle main ▸'; }, 3000); return; }
+    delete bn.dataset.armed; bn.textContent = 'Nouvelle main ▸';
+    P().forEach(p => { p.stack += p.total || 0; p.total = 0; p.bet = 0; });
+  }
+  startHand(S.phase !== 'idle');
+};
+
+load();
+if (S.phase === 'idle') openSettings();
+render();
+</script>
+<script>
+/* Mode « lecture d'écran » : capture d'une fenêtre, zones calibrées, reconnaissance des cartes
+   par apprentissage (plus proche voisin), OCR des montants (Tesseract.js), conseil automatique. */
+(function () {
+  'use strict';
+  const E = window.PokerEngine;
+  const $ = id => document.getElementById(id);
+  const KEY = 'pokerAuto';
+  const FW = 18, FH = 26; // feature size
+  const ZONES = [
+    ['h1', 'Ma carte 1'], ['h2', 'Ma carte 2'], ['b1', 'Tableau carte 1'], ['b5', 'Tableau carte 5'],
+    ['pot', 'Pot'], ['call', 'Montant à suivre'], ['me', 'Mon tapis'],
+    ['o1', 'Adv. 1'], ['o2', 'Adv. 2'], ['o3', 'Adv. 3'], ['o4', 'Adv. 4'], ['o5', 'Adv. 5'],
+    ['o6', 'Adv. 6'], ['o7', 'Adv. 7'], ['o8', 'Adv. 8'], ['o9', 'Adv. 9'],
+  ];
+  const ZCOL = { h: '#e8c35a', b: '#4fa3e0', pot: '#3fbf7f', call: '#e05555', me: '#c78be8', o: '#e89a3c' };
+  const A = {
+    zones: {}, lib: [], cfg: { bb: 20, style: 0.5, foldMode: 'light', interval: 700, thr: 0.85, num: 'en', pos: 'MP', nOppOverride: null },
+    src: null, video: null, img: null, timer: null, sel: 'h1', drag: null,
+    hist: {}, read: {}, ocrWorker: null, ocrBusy: false, ocrSig: {}, learning: false, skip: {}, advKey: '', advTok: 0,
+  };
+  window.__AUTO__ = A;
+  A._dbg = () => ({ feature, sim, match, px, boardZones, srcC });
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ zones: A.zones, lib: A.lib, cfg: A.cfg })); } catch (e) { } }
+  function load() {
+    try { const t = JSON.parse(localStorage.getItem(KEY) || 'null'); if (t) { A.zones = t.zones || {}; A.lib = t.lib || []; Object.assign(A.cfg, t.cfg || {}); } } catch (e) { }
+  }
+
+  const srcC = document.createElement('canvas'), srcX = srcC.getContext('2d', { willReadFrequently: true });
+  const smC = document.createElement('canvas'), smX = smC.getContext('2d', { willReadFrequently: true });
+  smC.width = FW; smC.height = FH;
+
+  /* ---------- source ---------- */
+  async function startCapture() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { status('Capture d\'écran indisponible ici. Ouvre l\'appli depuis GitHub Pages dans Chrome ou Edge.'); return; }
+    try {
+      const st = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 5 }, audio: false });
+      stop();
+      const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.srcObject = st; await v.play();
+      A.video = v; A.src = 'video'; A.img = null;
+      st.getVideoTracks()[0].addEventListener('ended', () => { stop(); status('Capture arrêtée.'); });
+      status('Capture en cours.');
+      loop();
+    } catch (e) { status('Capture refusée ou annulée (' + e.name + ').'); }
+  }
+  function loadImage(file) {
+    const im = new Image();
+    im.onload = () => { stop(); A.img = im; A.src = 'img'; status('Image test chargée (' + im.width + '×' + im.height + ').'); loop(); };
+    im.src = URL.createObjectURL(file);
+  }
+  function stop() {
+    clearTimeout(A.timer);
+    if (A.video && A.video.srcObject) A.video.srcObject.getTracks().forEach(t => t.stop());
+    A.video = null; A.src = A.img ? 'img' : null;
+  }
+  function status(t) { $('aStatus').textContent = t; }
+  function grab() {
+    let w, h;
+    if (A.src === 'video' && A.video) { w = A.video.videoWidth; h = A.video.videoHeight; if (!w) return false; }
+    else if (A.src === 'img' && A.img) { w = A.img.naturalWidth; h = A.img.naturalHeight; }
+    else return false;
+    if (srcC.width !== w || srcC.height !== h) { srcC.width = w; srcC.height = h; }
+    srcX.drawImage(A.src === 'video' ? A.video : A.img, 0, 0);
+    return true;
+  }
+
+  /* ---------- zones ---------- */
+  function boardZones() {
+    const a = A.zones.b1, b = A.zones.b5;
+    if (!a) return [];
+    if (!b) return [a];
+    const out = [];
+    for (let k = 0; k < 5; k++) {
+      const t = k / 4;
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, w: a.w + (b.w - a.w) * t, h: a.h + (b.h - a.h) * t });
+    }
+    return out;
+  }
+  function px(z) {
+    const W = srcC.width, H = srcC.height;
+    const x = Math.max(0, Math.round(z.x * W)), y = Math.max(0, Math.round(z.y * H));
+    return { x, y, w: Math.max(2, Math.min(W - x, Math.round(z.w * W))), h: Math.max(2, Math.min(H - y, Math.round(z.h * H))) };
+  }
+
+  /* ---------- card features ---------- */
+  function presence(z) {
+    const r = px(z), d = srcX.getImageData(r.x, r.y, r.w, r.h).data;
+    let n = 0, ok = 0;
+    for (let i = 0; i < d.length; i += 16) { // 1 pixel out of 4
+      const R = d[i], G = d[i + 1], B = d[i + 2], mx = Math.max(R, G, B), mn = Math.min(R, G, B);
+      n++; if (mx - mn < 45 && mx > 70) ok++;
+    }
+    return ok / n;
+  }
+  // Shift/brightness-robust card signature: "ink" (rank + suit symbols) aligned on its bounding box.
+  function feature(z) {
+    const r = px(z), d = srcX.getImageData(r.x, r.y, r.w, r.h).data, n = r.w * r.h;
+    const L = new Float32Array(n), redp = new Uint8Array(n), teal = new Uint8Array(n);
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < n; i++) {
+      const R = d[4 * i], G = d[4 * i + 1], B = d[4 * i + 2];
+      L[i] = 0.3 * R + 0.59 * G + 0.11 * B; hist[Math.min(255, L[i] | 0)]++;
+      redp[i] = R - Math.max(G, B) > 40 ? 1 : 0;
+      teal[i] = (G > R + 30 || B > R + 30) ? 1 : 0; // felt / non-card colours
+    }
+    let acc = 0, bg = 255; for (let t = 255; t >= 0; t--) { acc += hist[t]; if (acc >= n * 0.5) { bg = t; break; } } // median (bright side)
+    const ink = new Uint8Array(n);
+    for (let i = 0; i < n; i++) if (bg - L[i] > 55 && (!teal[i] || redp[i])) ink[i] = 1;
+    // drop everything touching the zone border (card edges, shadows, neighbouring cards, clipped symbols)
+    const lab = new Int32Array(n), stack = [];
+    let nl = 0;
+    for (let i0 = 0; i0 < n; i0++) {
+      if (!ink[i0] || lab[i0]) continue;
+      nl++; lab[i0] = nl; stack.push(i0);
+      const comp = []; let cx0 = r.w, cx1 = 0, cy0 = r.h, cy1 = 0, edge = false;
+      while (stack.length) {
+        const i = stack.pop(); comp.push(i);
+        const x = i % r.w, y = (i / r.w) | 0;
+        if (x < cx0) cx0 = x; if (x > cx1) cx1 = x; if (y < cy0) cy0 = y; if (y > cy1) cy1 = y;
+        if (x === 0 || y === 0 || x === r.w - 1 || y === r.h - 1) edge = true;
+        if (x > 0 && ink[i - 1] && !lab[i - 1]) { lab[i - 1] = nl; stack.push(i - 1); }
+        if (x < r.w - 1 && ink[i + 1] && !lab[i + 1]) { lab[i + 1] = nl; stack.push(i + 1); }
+        if (y > 0 && ink[i - r.w] && !lab[i - r.w]) { lab[i - r.w] = nl; stack.push(i - r.w); }
+        if (y < r.h - 1 && ink[i + r.w] && !lab[i + r.w]) { lab[i + r.w] = nl; stack.push(i + r.w); }
+      }
+      if (edge) comp.forEach(i => ink[i] = 0); // symbols cut by the zone edge are unstable
+    }
+    let x0 = r.w, y0 = r.h, x1 = -1, y1 = -1, cnt = 0, red = 0;
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+      const i = y * r.w + x;
+      if (ink[i]) { cnt++; red += redp[i]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+    if (cnt < 8) return null;
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+    const samp = (fx0, fy0, fx1, fy1, W, H) => {
+      const out = new Array(W * H);
+      const sx0 = x0 + fx0 * bw, sy0 = y0 + fy0 * bh, cw = (fx1 - fx0) * bw / W, ch = (fy1 - fy0) * bh / H;
+      for (let j = 0; j < H; j++) for (let k = 0; k < W; k++) {
+        const ax = Math.floor(sx0 + k * cw), bx = Math.max(ax + 1, Math.floor(sx0 + (k + 1) * cw));
+        const ay = Math.floor(sy0 + j * ch), by = Math.max(ay + 1, Math.floor(sy0 + (j + 1) * ch));
+        let s = 0, m = 0;
+        for (let y = ay; y < by && y <= y1; y++) for (let x = ax; x < bx && x <= x1; x++) { s += ink[y * r.w + x]; m++; }
+        out[j * W + k] = m ? Math.round(s / m * 100) / 100 : 0;
+      }
+      return out;
+    };
+    return { r: samp(0, 0, .5, .42, 16, 20), w: samp(0, 0, 1, 1, 16, 22), red: red / cnt > 0.5 ? 1 : 0 };
+  }
+  function ncc(a, b) {
+    let ma = 0, mb = 0; const n = a.length;
+    for (let i = 0; i < n; i++) { ma += a[i]; mb += b[i]; } ma /= n; mb /= n;
+    let sab = 0, saa = 0, sbb = 0;
+    for (let i = 0; i < n; i++) { const x = a[i] - ma, y = b[i] - mb; sab += x * y; saa += x * x; sbb += y * y; }
+    return sab / Math.sqrt(saa * sbb + 1e-9);
+  }
+  function sim(f, g) { return (f.red !== g.red) ? -1 : Math.min(ncc(f.r, g.r), ncc(f.w, g.w)); }
+  function dist(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; }
+  function match(f, grp) {
+    let best = null, bs = -2; const per = {};
+    for (const e of A.lib) {
+      if (e.g !== grp || !e.f || e.f.r === undefined) continue;
+      const v = sim(f, e.f);
+      if (per[e.c] === undefined || v > per[e.c]) per[e.c] = v;
+    }
+    let second = -2;
+    for (const c in per) { const v = per[c]; if (v > bs) { second = bs; bs = v; best = +c; } else if (v > second) second = v; }
+    return best === null ? null : { c: best, s: bs, second };
+  }
+  // cheap signature for "did this zone change" (OCR)
+  function sig(z) {
+    const r = px(z);
+    smX.drawImage(srcC, r.x, r.y, r.w, r.h, 0, 0, FW, FH);
+    const d = smX.getImageData(0, 0, FW, FH).data, out = [];
+    for (let i = 0; i < d.length; i += 4) out.push((d[i] + d[i + 1] + d[i + 2]) / 765);
+    return out;
+  }
+
+  /* ---------- OCR ---------- */
+  async function ocrInit() {
+    if (A.ocrWorker || A.ocrLoading) return;
+    A.ocrLoading = true;
+    try {
+      if (!window.Tesseract) await new Promise((res, rej) => {
+        const sc = document.createElement('script');
+        sc.src = (window.__TESS__ && window.__TESS__.lib) || 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+        sc.onload = res; sc.onerror = rej; document.head.appendChild(sc);
+      });
+      const opt = window.__TESS__ ? window.__TESS__.opt : {};
+      const w = await Tesseract.createWorker('eng', 1, opt);
+      await w.setParameters({ tessedit_char_whitelist: '0123456789,.kKM ', tessedit_pageseg_mode: '7' });
+      A.ocrWorker = w;
+    } catch (e) { A.ocrErr = 'OCR indisponible (' + (e && e.message || e) + ')'; }
+    A.ocrLoading = false;
+  }
+  const ocC = document.createElement('canvas'), ocX = ocC.getContext('2d', { willReadFrequently: true });
+  function ocrCanvas(z) {
+    const r = px(z), sc = Math.max(1, 64 / r.h);
+    ocC.width = Math.round(r.w * sc); ocC.height = Math.round(r.h * sc);
+    ocX.imageSmoothingEnabled = true;
+    ocX.drawImage(srcC, r.x, r.y, r.w, r.h, 0, 0, ocC.width, ocC.height);
+    const im = ocX.getImageData(0, 0, ocC.width, ocC.height), d = im.data;
+    let sum = 0; const n = d.length / 4, gs = new Float32Array(n);
+    for (let i = 0; i < n; i++) { gs[i] = 0.3 * d[4 * i] + 0.59 * d[4 * i + 1] + 0.11 * d[4 * i + 2]; sum += gs[i]; }
+    // Otsu threshold
+    const hist = new Array(256).fill(0); for (let i = 0; i < n; i++) hist[gs[i] | 0]++;
+    let sumB = 0, wB = 0, best = 0, th = 128; const tot = sum;
+    for (let t = 0; t < 256; t++) { wB += hist[t]; if (!wB) continue; const wF = n - wB; if (!wF) break; sumB += t * hist[t]; const mB = sumB / wB, mF = (tot - sumB) / wF; const v = wB * wF * (mB - mF) * (mB - mF); if (v > best) { best = v; th = t; } }
+    // text = minority class
+    let above = 0; for (let i = 0; i < n; i++) if (gs[i] > th) above++;
+    const textBright = above < n / 2;
+    for (let i = 0; i < n; i++) { const t = textBright ? gs[i] > th : gs[i] <= th; const v = t ? 0 : 255; d[4 * i] = d[4 * i + 1] = d[4 * i + 2] = v; d[4 * i + 3] = 255; }
+    ocX.putImageData(im, 0, 0);
+    // white margin helps tesseract
+    const out = document.createElement('canvas'); out.width = ocC.width + 30; out.height = ocC.height + 30;
+    const ox = out.getContext('2d'); ox.fillStyle = '#fff'; ox.fillRect(0, 0, out.width, out.height); ox.drawImage(ocC, 15, 15);
+    return out;
+  }
+  function parseNum(t) {
+    if (!t) return null;
+    t = t.replace(/\s+/g, A.cfg.num === 'fr' ? '' : ' ').trim();
+    const m = t.match(/[\d.,]+\s*[kKM]?/); if (!m) return null;
+    let s = m[0].replace(/\s/g, ''), mult = 1;
+    if (/k$/i.test(s)) { mult = 1e3; s = s.slice(0, -1); } else if (/M$/.test(s)) { mult = 1e6; s = s.slice(0, -1); }
+    if (A.cfg.num === 'en') s = s.replace(/,(?=\d{3}(\D|$))/g, '');
+    else s = s.replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
+    const v = parseFloat(s); return isFinite(v) ? v * mult : null;
+  }
+  async function ocrZones() {
+    if (A.ocrBusy) return;
+    const keys = ['pot', 'call', 'me'].filter(k => A.zones[k]);
+    if (!keys.length) return;
+    if (!A.ocrWorker) { ocrInit(); return; }
+    A.ocrBusy = true;
+    try {
+      for (const k of keys) {
+        const sg = sig(A.zones[k]);
+        if (A.ocrSig[k] && dist(sg, A.ocrSig[k]) < 0.01) continue; // unchanged
+        A.ocrSig[k] = sg;
+        const cv = ocrCanvas(A.zones[k]);
+        const r = await A.ocrWorker.recognize(cv);
+        A.read[k] = parseNum(r.data.text); A.read[k + 'Raw'] = r.data.text.trim();
+      }
+    } catch (e) { A.ocrErr = String(e); }
+    A.ocrBusy = false;
+  }
+
+  /* ---------- reading ---------- */
+  function readCards(zs, grp, prefix) {
+    const out = [];
+    zs.forEach((z, i) => {
+      const id = prefix + i;
+      const pres = presence(z);
+      if (pres < 0.35) { out.push(null); A.hist[id] = null; return; }
+      const f = feature(z);
+      if (!f) { out.push(null); A.hist[id] = null; return; }
+      const m = match(f, grp);
+      const prev = A.hist[id]; A.hist[id] = f;
+      const stable = prev && sim(prev, f) > 0.97;
+      if (m && m.s >= A.cfg.thr && m.s - m.second >= 0.03) { out.push({ c: m.c, s: m.s, f, grp }); return; }
+      out.push({ c: null, f, grp, s: m ? m.s : null });
+      if (stable && !A.learning) askLearn(z, f, grp);
+    });
+    return out;
+  }
+  function askLearn(z, f, grp) {
+    A.learning = true;
+    const r = px(z), cv = $('pickCrop');
+    const sc = Math.min(4, 110 / r.h);
+    cv.width = r.w * sc; cv.height = r.h * sc;
+    const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(srcC, r.x, r.y, r.w, r.h, 0, 0, cv.width, cv.height);
+    const cb = c => { A.lib.push({ g: grp, c, f }); save(); A.learning = false; libInfo(); tick(true); };
+    cb.cancel = () => { A.learning = false; };
+    openPick('learn', 0, cb);
+  }
+  function oppActive() {
+    const ks = ZONES.map(z => z[0]).filter(k => k[0] === 'o' && A.zones[k]);
+    if (!ks.length) return null;
+    const lums = ks.map(k => {
+      const r = px(A.zones[k]), d = srcX.getImageData(r.x, r.y, r.w, r.h).data; let s = 0, n = 0;
+      for (let i = 0; i < d.length; i += 16) { s += 0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]; n++; }
+      return s / n;
+    });
+    if (A.cfg.foldMode === 'none') return { n: ks.length, lums, act: ks.map(() => true) };
+    const mn = Math.min(...lums), mx = Math.max(...lums);
+    let act;
+    // split at the largest luminance gap (folded seats are greyed out uniformly)
+    const so = lums.slice().sort((a, b) => a - b);
+    let gi = -1, g = 0; for (let i = 0; i < so.length - 1; i++) if (so[i + 1] - so[i] > g) { g = so[i + 1] - so[i]; gi = i; }
+    if (gi < 0 || g < Math.max(4, 0.12 * mx)) act = ks.map(() => true); // all alike → assume all in
+    else { const mid = (so[gi] + so[gi + 1]) / 2; act = lums.map(l => A.cfg.foldMode === 'light' ? l < mid : l > mid); }
+    return { n: act.filter(Boolean).length, lums, act, keys: ks };
+  }
+
+  function tick(force) {
+    if (!grab()) { drawOverlay(); return; }
+    const hero = readCards([A.zones.h1, A.zones.h2].filter(Boolean), 'h', 'h');
+    const bz = boardZones();
+    let board = readCards(bz, 'b', 'b');
+    // board must be contiguous: stop at first empty slot
+    const fe = board.findIndex(x => !x); if (fe >= 0) board = board.slice(0, fe);
+    A.cur = { hero, board, opp: oppActive() };
+    ocrZones();
+    drawOverlay();
+    renderLive();
+  }
+  function loop() {
+    clearTimeout(A.timer);
+    tick();
+    if (A.src === 'video') A.timer = setTimeout(loop, Math.max(200, A.cfg.interval));
+    else if (A.src === 'img') A.timer = setTimeout(loop, 1500); // image: keep OCR / learning going
+  }
+
+  /* ---------- advice ---------- */
+  const fmt = v => v == null ? '?' : (Math.round(v * 100) / 100).toLocaleString('fr-FR');
+  const pct = v => (v * 100).toFixed(1).replace('.', ',') + ' %';
+  const REC = { FOLD: 'SE COUCHER', CHECK: 'PAROLE', CALL: 'SUIVRE', BET: 'MISER', RAISE: 'RELANCER', ALLIN: 'TAPIS' };
+  const OPEN = { UTG: .13, MP: .18, CO: .28, BTN: .42, SB: .36, BB: .5 };
+
+  function renderLive() {
+    const c = A.cur; if (!c) return;
+    const known = a => a.every(x => x && x.c !== null && x.c !== undefined);
+    const heroOk = c.hero.length === 2 && known(c.hero);
+    const boardOk = known(c.board) && [0, 3, 4, 5].includes(c.board.length);
+    const nOppAuto = c.opp ? c.opp.n : null;
+    const nOpp = A.cfg.nOppOverride != null ? A.cfg.nOppOverride : nOppAuto;
+    const pot = A.read.pot, call = A.zones.call ? (A.read.call || 0) : 0, me = A.read.me;
+    const cardTxt = a => a.map(x => x ? (x.c !== null ? E.cardStr(x.c) : '??') : '—').join(' ') || '—';
+    $('aLive').innerHTML = `<table class="k">
+      <tr><td>Mes cartes</td><td>${cardTxt(c.hero)}</td></tr>
+      <tr><td>Tableau (${['Préflop', '', '', 'Flop', 'Turn', 'River'][c.board.length] || '?'})</td><td>${cardTxt(c.board)}</td></tr>
+      <tr><td>Adversaires en jeu</td><td>
+        <button class="btn sm" data-o="-1">−</button> ${nOpp == null ? '?' : nOpp}${A.cfg.nOppOverride != null ? ' (forcé)' : ''} <button class="btn sm" data-o="1">+</button>
+        ${A.cfg.nOppOverride != null ? '<button class="btn sm" data-o="0">auto</button>' : ''}</td></tr>
+      <tr><td>Pot / à suivre / mon tapis</td><td>${fmt(pot)} / ${fmt(call)} / ${fmt(me)}</td></tr>
+      <tr><td>Ma position</td><td><span class="chips" style="justify-content:flex-end">${Object.keys(OPEN).map(p => `<span class="chip ${A.cfg.pos === p ? 'on' : ''}" data-p="${p}" style="padding:4px 8px">${p}</span>`).join('')}</span></td></tr>
+    </table>${A.ocrErr ? `<div class="muted">${A.ocrErr}</div>` : ''}${(A.zones.pot && !A.ocrWorker) ? '<div class="muted"><span class="spin"></span> Chargement de l\'OCR…</div>' : ''}`;
+    $('aLive').querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
+      const d = +b.dataset.o;
+      if (d === 0) A.cfg.nOppOverride = null; else A.cfg.nOppOverride = Math.max(1, Math.min(9, (A.cfg.nOppOverride != null ? A.cfg.nOppOverride : (nOppAuto || 1)) + d));
+      save(); renderLive();
+    });
+    $('aLive').querySelectorAll('[data-p]').forEach(b => b.onclick = () => { A.cfg.pos = b.dataset.p; save(); A.advKey = ''; renderLive(); });
+    if (!heroOk) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">${c.hero.length < 2 ? 'Zones « Ma carte 1/2 » à calibrer.' : 'En attente de tes cartes…'}</div></div>`; A.advKey = ''; return; }
+    if (!boardOk) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">Lecture du tableau en cours…</div></div>`; return; }
+    const ctx = { hero: c.hero.map(x => x.c), board: c.board.map(x => x.c), nOpp: Math.max(1, nOpp || 1), pot: pot || 0, call, me };
+    const key = JSON.stringify([ctx, A.cfg.style, A.cfg.pos, A.cfg.bb]);
+    if (key === A.advKey) return;
+    A.advKey = key;
+    advise(ctx);
+  }
+
+  function advise(ctx) {
+    const tok = ++A.advTok, bb = A.cfg.bb || 1, pre = ctx.board.length === 0;
+    // opponents model
+    let opps, level = 0;
+    if (pre) {
+      const r = ctx.call / bb; // amount to call in big blinds
+      level = r <= 1.01 ? 0 : r <= 5 ? 1 : r <= 15 ? 2 : 3;
+      const style = A.cfg.style;
+      const raiserR = [style, Math.min(.45, style * .55), Math.min(.15, style * .2), Math.min(.06, style * .08)][level];
+      opps = [{ range: raiserR, post: 0 }];
+      if (level === 0 && ctx.call > 0) opps = [{ range: 1, post: 0 }];
+    } else {
+      opps = [];
+      for (let i = 0; i < ctx.nOpp; i++) opps.push({ range: A.cfg.style, post: ctx.call > 0 ? (i === 0 ? 2 : 1) : 0 });
+    }
+    const preC = E.prepare(ctx.hero, ctx.board, opps);
+    if (preC.some(x => x.total <= 0)) return;
+    let acc = 0, n = 0;
+    const TOTAL = 30000, CH = 5000;
+    $('aAdv').innerHTML = `<div class="adv"><span class="spin"></span> <span class="muted">Calcul…</span></div>`;
+    const step = () => {
+      if (tok !== A.advTok) return;
+      const r = E.equity(ctx.hero, ctx.board, opps, CH, preC);
+      acc += r.equity * r.iters; n += r.iters;
+      show(ctx, { equity: acc / n, iters: n, nSim: opps.length, level }, n >= TOTAL);
+      if (n < TOTAL) setTimeout(step, 0);
+    };
+    setTimeout(step, 0);
+  }
+
+  function show(ctx, eq, done) {
+    const bb = A.cfg.bb || 1, Eq = eq.equity, pot = ctx.pot, call = ctx.call;
+    const potOdds = call > 0 ? call / (pot + call) : 0, ev = Eq * (pot + call) - call;
+    const why = [], alt = []; let rec, amt = 0;
+    const capMe = v => ctx.me ? Math.min(v, ctx.me + call) : v;
+    if (ctx.board.length === 0) {
+      const p = E.handPct(ctx.hero[0], ctx.hero[1]), cls = E.classOf(ctx.hero[0], ctx.hero[1]);
+      const open = OPEN[A.cfg.pos] || .2;
+      why.push(`${cls} : top ${Math.round(p * 100)} % des mains.`);
+      if (eq.level === 0) {
+        if (call === 0) { rec = p <= .12 ? 'RAISE' : 'CHECK'; amt = 3.5 * bb; why.push(rec === 'RAISE' ? 'Main forte : on relance.' : 'Tour gratuit.'); }
+        else if (p <= open) { rec = 'RAISE'; amt = 2.5 * bb + (pot > 1.5 * bb + 0.01 ? (pot - 1.5 * bb) : 0); why.push(`Seuil d'ouverture ${A.cfg.pos} : top ${Math.round(open * 100)} %. Relance ≈ 2,5 BB (+ les limpers).`); }
+        else { rec = 'FOLD'; why.push(`Hors du seuil d'ouverture ${A.cfg.pos} (top ${Math.round(open * 100)} %).`); }
+      } else if (eq.level === 1) {
+        if (p <= .05) { rec = 'RAISE'; amt = call * 3.5; why.push('Premium face à une relance : 3-bet.'); }
+        else if (Eq >= potOdds + .04 && p <= .32) { rec = 'CALL'; why.push(`Équité ${pct(Eq)} > cote ${pct(potOdds)} (+4 %).`); }
+        else { rec = 'FOLD'; why.push(`Équité ${pct(Eq)} insuffisante vs cote ${pct(potOdds)}.`); }
+      } else {
+        if (p <= .022) { rec = eq.level >= 3 ? 'ALLIN' : 'RAISE'; amt = call * 2.4; why.push('Haut de range : on relance.'); }
+        else if (Eq >= potOdds + .02 && p <= .08) { rec = 'CALL'; why.push(`Équité ${pct(Eq)} ≥ cote ${pct(potOdds)}.`); }
+        else { rec = 'FOLD'; why.push('Grosse relance : range adverse très forte.'); }
+      }
+    } else {
+      const k = Math.min(ctx.nOpp, 4);
+      const valueT = [0, .62, .48, .40, .35][k], raiseT = [0, .72, .56, .47, .41][k], thinT = valueT - .08;
+      const d = E.draws(ctx.hero.concat(ctx.board));
+      const drawing = ctx.board.length < 5 && (d.flushDraw || d.oesd);
+      if (call === 0) {
+        if (Eq >= valueT) { rec = 'BET'; amt = pot * .66; why.push(`Équité ${pct(Eq)} ≥ ${pct(valueT)} : mise de valeur ≈ 2/3 pot.`); }
+        else if (Eq >= thinT) { rec = 'BET'; amt = pot * .33; why.push(`Équité correcte : petite mise ≈ 1/3 pot.`); alt.push('Checker aussi défendable.'); }
+        else if (drawing && Eq >= .3 && ctx.nOpp <= 2) { rec = 'BET'; amt = pot * .5; why.push('Tirage fort : semi-bluff ≈ 1/2 pot.'); alt.push('Ou checker pour la carte gratuite.'); }
+        else { rec = 'CHECK'; why.push(`Équité ${pct(Eq)} sous le seuil de valeur.`); }
+      } else {
+        if (Eq >= raiseT) { rec = 'RAISE'; amt = call * 3; why.push(`Équité ${pct(Eq)} ≥ ${pct(raiseT)} : relance ≈ 3×.`); }
+        else if (Eq >= potOdds) { rec = 'CALL'; why.push(`Équité ${pct(Eq)} ≥ cote ${pct(potOdds)}.`); }
+        else if (drawing && ctx.board.length < 5 && (call / Eq - (pot + call)) < (ctx.me || 1e9) * .35) { rec = 'CALL'; why.push(`Cote directe insuffisante mais tirage : cotes implicites (il faut gagner ≈ ${fmt(call / Eq - (pot + call))} de plus).`); alt.push('Se coucher si les bots paient peu.'); }
+        else { rec = 'FOLD'; why.push(`Équité ${pct(Eq)} < cote du pot ${pct(potOdds)}.`); }
+      }
+      if (d.flushDraw || d.oesd || d.gutshot) why.push('Tirages : ' + [d.flushDraw && 'couleur', d.oesd && 'quinte bilatérale', d.gutshot && 'quinte ventrale'].filter(Boolean).join(', ') + '.');
+    }
+    if (amt) { amt = capMe(Math.round(amt / bb * 2) / 2 * bb); if (ctx.me && amt >= (ctx.me + call) * .6) { rec = 'ALLIN'; amt = ctx.me + call; } }
+    const made = ctx.board.length >= 3 ? E.describe(E.evaluate(ctx.hero.concat(ctx.board))) : E.classOf(ctx.hero[0], ctx.hero[1]);
+    $('aAdv').innerHTML = `<div class="adv ${rec}">
+      <div class="muted">${made} · ${eq.nSim} adv. simulé${eq.nSim > 1 ? 's' : ''}</div>
+      <div class="rec">${REC[rec]}${amt && rec !== 'CALL' ? ' ' + fmt(amt) : rec === 'CALL' ? ' ' + fmt(call) : ''}</div>
+      <div class="eqbar"><i style="width:${(Eq * 100).toFixed(1)}%"></i>${potOdds ? `<u style="left:${(potOdds * 100).toFixed(1)}%"></u>` : ''}</div>
+      <table class="k"><tr><td>Équité</td><td>${pct(Eq)}</td></tr>
+      ${call ? `<tr><td>Cote du pot</td><td>${pct(potOdds)}</td></tr><tr><td>EV de suivre</td><td>${ev >= 0 ? '+' : ''}${fmt(ev)}</td></tr>` : ''}
+      <tr><td>Simulations</td><td>${eq.iters.toLocaleString('fr-FR')}${done ? '' : ' <span class="spin"></span>'}</td></tr></table>
+      <ul class="why">${why.map(w => `<li>${w}</li>`).join('')}</ul>${alt.length ? `<div class="alt">Alternative : ${alt.join(' ')}</div>` : ''}</div>`;
+  }
+
+  /* ---------- calibration canvas ---------- */
+  const cv = $('aCanvas'), cx = cv.getContext('2d');
+  function drawOverlay() {
+    if (!$('aCal').open) return;
+    if (!srcC.width) { cv.width = 400; cv.height = 60; cx.fillStyle = '#9fbcae'; cx.font = '14px sans-serif'; cx.fillText('Lance la capture ou charge une image test.', 10, 35); return; }
+    const sc = Math.min(1, 1100 / srcC.width);
+    cv.width = Math.round(srcC.width * sc); cv.height = Math.round(srcC.height * sc);
+    cx.drawImage(srcC, 0, 0, cv.width, cv.height);
+    const all = [];
+    for (const [k, lbl] of ZONES) if (A.zones[k] && k !== 'b1' && k !== 'b5') all.push([k, lbl, A.zones[k]]);
+    boardZones().forEach((z, i) => all.push(['b', 'T' + (i + 1), z]));
+    cx.lineWidth = 2; cx.font = 'bold 12px sans-serif';
+    for (const [k, lbl, z] of all) {
+      const col = ZCOL[k] || ZCOL[k[0]] || '#fff';
+      cx.strokeStyle = col; cx.strokeRect(z.x * cv.width, z.y * cv.height, z.w * cv.width, z.h * cv.height);
+      cx.fillStyle = col; cx.fillText(lbl, z.x * cv.width + 2, z.y * cv.height - 3);
+    }
+    if (A.drag) { cx.strokeStyle = '#fff'; cx.setLineDash([5, 4]); const d = A.drag; cx.strokeRect(Math.min(d.x0, d.x1) * cv.width, Math.min(d.y0, d.y1) * cv.height, Math.abs(d.x1 - d.x0) * cv.width, Math.abs(d.y1 - d.y0) * cv.height); cx.setLineDash([]); }
+  }
+  function rel(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }; }
+  cv.addEventListener('pointerdown', e => { if (!srcC.width) return; cv.setPointerCapture(e.pointerId); const p = rel(e); A.drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y }; });
+  cv.addEventListener('pointermove', e => { if (!A.drag) return; const p = rel(e); A.drag.x1 = p.x; A.drag.y1 = p.y; drawOverlay(); });
+  cv.addEventListener('pointerup', () => {
+    const d = A.drag; A.drag = null; if (!d) return;
+    const z = { x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1), w: Math.abs(d.x1 - d.x0), h: Math.abs(d.y1 - d.y0) };
+    if (z.w < 0.005 || z.h < 0.005) { drawOverlay(); return; }
+    A.zones[A.sel] = z; save();
+    // advance to next zone automatically
+    const i = ZONES.findIndex(x => x[0] === A.sel);
+    if (i >= 0 && i < ZONES.length - 1) A.sel = ZONES[i + 1][0];
+    zoneBtns(); tick(true);
+  });
+  function zoneBtns() {
+    $('aZoneBtns').innerHTML = ZONES.map(([k, l]) => `<span class="chip ${A.sel === k ? 'on' : ''}" data-z="${k}" style="padding:5px 9px;font-size:13px">${A.zones[k] ? '✓ ' : ''}${l}</span>`).join('');
+    $('aZoneBtns').querySelectorAll('[data-z]').forEach(c => c.onclick = () => { A.sel = c.dataset.z; zoneBtns(); });
+  }
+  function libInfo() {
+    const nb = new Set(A.lib.filter(e => e.g === 'b').map(e => e.c)).size, nh = new Set(A.lib.filter(e => e.g === 'h').map(e => e.c)).size;
+    $('aLibInfo').textContent = `Cartes apprises : tableau ${nb}/52, main ${nh}/52`;
+  }
+
+  /* ---------- wiring ---------- */
+  load();
+  $('bAuto').onclick = () => { $('pAuto').classList.toggle('hidden'); document.body.classList.toggle('auto', !$('pAuto').classList.contains('hidden')); $('bAuto').textContent = document.body.classList.contains('auto') ? '✋ Manuel' : '📺 Écran'; if (!$('pAuto').classList.contains('hidden')) { $('pAuto').scrollIntoView({ behavior: 'smooth' }); drawOverlay(); if (A.zones.pot || A.zones.call) ocrInit(); } };
+  $('aStart').onclick = startCapture;
+  $('aStop').onclick = () => { stop(); A.src = null; status('Arrêté.'); };
+  $('aFile').onchange = e => { if (e.target.files[0]) loadImage(e.target.files[0]); };
+  $('aCal').addEventListener('toggle', drawOverlay);
+  $('aClearZone').onclick = () => { delete A.zones[A.sel]; save(); zoneBtns(); tick(true); };
+  let clr = 0;
+  $('aClearLib').onclick = () => { if (Date.now() - clr > 3000) { clr = Date.now(); $('aClearLib').textContent = 'Confirmer ?'; setTimeout(() => $('aClearLib').textContent = 'Oublier les cartes apprises', 3000); return; } A.lib = []; save(); libInfo(); $('aClearLib').textContent = 'Oublier les cartes apprises'; };
+  const bindCfg = (id, k, num) => { const el = $(id); el.value = A.cfg[k]; el.onchange = () => { A.cfg[k] = num ? parseFloat(el.value) : el.value; save(); A.advKey = ''; tick(true); }; };
+  bindCfg('aBB', 'bb', true); bindCfg('aStyle', 'style', true); bindCfg('aFoldMode', 'foldMode'); bindCfg('aInt', 'interval', true); bindCfg('aThr', 'thr', true); bindCfg('aNum', 'num');
+  zoneBtns(); libInfo();
+})();
+</script>
+</body>
+</html>
