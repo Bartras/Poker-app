@@ -1132,7 +1132,7 @@ render();
   const A = {
     zones: {}, lib: [], cfg: { bb: 20, style: 0.5, foldMode: 'cards', v: 2, interval: 700, thr: 0.85, num: 'en', pos: 'MP', nOppOverride: null },
     src: null, video: null, img: null, timer: null, sel: 'h1', drag: null,
-    hist: {}, read: {}, ocrWorker: null, ocrBusy: false, ocrSig: {}, learning: false, skip: {}, advKey: '', advTok: 0,
+    hist: {}, unk: [], read: {}, ocrWorker: null, ocrBusy: false, ocrSig: {}, learning: false, skip: {}, advKey: '', advTok: 0,
   };
   window.__AUTO__ = A;
   A._dbg = () => ({ feature, sim, match, px, boardZones, srcC, renderLive, captureD, dealerCheck, findD, seatAnchors });
@@ -1266,9 +1266,18 @@ render();
     for (let i = 0; i < n; i++) { ma += a[i]; mb += b[i]; } ma /= n; mb /= n;
     let sab = 0, saa = 0, sbb = 0;
     for (let i = 0; i < n; i++) { const x = a[i] - ma, y = b[i] - mb; sab += x * y; saa += x * x; sbb += y * y; }
-    return sab / Math.sqrt(saa * sbb + 1e-9);
+    if (saa < 1e-6 && sbb < 1e-6) return null; // both flat (e.g. no ink in this region): no information
+    if (saa < 1e-6 || sbb < 1e-6) return 0;
+    return sab / Math.sqrt(saa * sbb);
   }
-  function sim(f, g) { return (f.red !== g.red) ? -1 : Math.min(ncc(f.r, g.r), ncc(f.w, g.w)); }
+  // rank region (top-left) can be empty for some glyphs (e.g. J): then rely on the whole-symbol signature only
+  function sim(f, g) {
+    if (f.red !== g.red) return -1;
+    const a = ncc(f.r, g.r), c = ncc(f.w, g.w);
+    if (a === null) return c === null ? 0 : c;
+    if (c === null) return a;
+    return Math.min(a, c);
+  }
   function dist(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; }
   function match(f, grp) {
     let best = null, bs = -2; const per = {};
@@ -1405,6 +1414,7 @@ render();
       const stable = prev && sim(prev, f) > 0.97;
       if (m && m.s >= A.cfg.thr && m.s - m.second >= 0.03) { out.push({ c: m.c, s: m.s, f, grp }); return; }
       out.push({ c: null, f, grp, s: m ? m.s : null });
+      A.unk.push({ z, f, grp });
       if (stable && !A.learning) askLearn(z, f, grp);
     });
     return out;
@@ -1418,7 +1428,7 @@ render();
       if (!e.f || e.f.r === undefined) continue;
       const bonus = e.g === grp ? 0.02 : 0;
       if (e.f.red === f.red) { const v = sim(f, e.f) + bonus; if (per[e.c] === undefined || v > per[e.c]) per[e.c] = v; }
-      const rv = ncc(f.r, e.f.r) + bonus, r = e.c >> 2; if (rk[r] === undefined || rv > rk[r]) rk[r] = rv;
+      const rv = (ncc(f.r, e.f.r) || 0) + bonus, r = e.c >> 2; if (rk[r] === undefined || rv > rk[r]) rk[r] = rv;
     }
     const out = [];
     Object.keys(per).map(Number).filter(c => per[c] > 0.5 && !used.has(c)).sort((a, b) => per[b] - per[a]).slice(0, 3).forEach(c => out.push(c));
@@ -1538,6 +1548,7 @@ render();
   }
   function tick(force) {
     if (!grab()) { drawOverlay(); return; }
+    A.unk = [];
     const hero = readCards([A.zones.h1, A.zones.h2].filter(Boolean), 'h', 'h');
     const bz = boardZones();
     let board = readCards(bz, 'b', 'b');
@@ -1612,7 +1623,12 @@ render();
     });
     $('aLive').querySelectorAll('[data-p]').forEach(b => b.onclick = () => { A.posLock = true; A.cfg.pos = b.dataset.p; save(); A.advKey = ''; renderLive(); });
     if (!heroOk) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">${c.hero.length < 2 ? 'Zones « Ma carte 1/2 » à calibrer.' : 'En attente de tes cartes…'}</div></div>`; A.advKey = ''; return; }
-    if (!boardOk) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">Lecture du tableau en cours…</div></div>`; return; }
+    if (!boardOk) {
+      const u = A.unk && A.unk.length;
+      $('aAdv').innerHTML = `<div class="adv"><div class="muted">${u ? `${u} carte${u > 1 ? 's' : ''} du tableau non reconnue${u > 1 ? 's' : ''} (« ?? » ci-dessus). Identifie-la pour avoir le conseil.` : 'Lecture du tableau en cours…'}</div>${u ? '<button class="btn gold" id="aIdent" style="margin-top:8px">Identifier la carte</button>' : ''}</div>`;
+      const ib = $('aIdent'); if (ib) ib.onclick = () => { if (!A.learning && A.unk.length) askLearn(A.unk[0].z, A.unk[0].f, A.unk[0].grp); };
+      return;
+    }
     if (callBlock) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">${callBlock}</div></div>`; A.advKey = ''; A.advTok++; return; }
     const ctx = { hero: c.hero.map(x => x.c), board: c.board.map(x => x.c), nOpp: Math.max(1, nOpp || 1), pot: pot || 0, call, me };
     const key = JSON.stringify([ctx, A.cfg.style, A.cfg.pos, A.cfg.bb]);
