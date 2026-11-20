@@ -491,6 +491,16 @@ window.__HAND_ORDER__=["AA","KK","QQ","JJ","TT","99","88","AKs","AQs","77","AKo"
 <script>
 'use strict';
 const E = window.PokerEngine;
+const RNAME_FR = { A: 'As', K: 'Roi', Q: 'Dame', J: 'Valet', T: '10' };
+const SNAME_FR = ['pique', 'cœur', 'carreau', 'trèfle'];
+const frRank = r => RNAME_FR[E.RANKS[r]] || E.RANKS[r];
+const frCard = c => `${frRank(c >> 2)} de ${SNAME_FR[c & 3]} ${E.SUIT_SYM[c & 3]}`;
+function frClass(c1, c2) {
+  let r1 = c1 >> 2, r2 = c2 >> 2; if (r1 < r2) { const t = r1; r1 = r2; r2 = t; }
+  const code = E.classOf(c1, c2);
+  if (r1 === r2) { const n = frRank(r1), pl = n === 'As' ? 'd\'As' : /^\d+$/.test(n) ? 'de ' + n : 'de ' + n + 's'; return `Paire ${pl} (${code})`; }
+  return `${frRank(r1)}-${frRank(r2)} ${(c1 & 3) === (c2 & 3) ? 'de même couleur' : 'de couleurs différentes'} (${code})`;
+}
 const $ = id => document.getElementById(id);
 const fmt = v => { v = Math.round(v * 100) / 100; return (Math.abs(v) >= 1000 ? v.toLocaleString('fr-FR') : String(v).replace('.', ',')); };
 const pct = v => (v * 100).toFixed(1).replace('.', ',') + ' %';
@@ -672,7 +682,7 @@ function returnUncalled() {
 }
 function boardEntered() {
   if (S.phase !== 'deal' || S.board.length < boardNeed()) return;
-  log(`<b>${STREETS[S.street]}</b> : ${S.board.slice(0, boardNeed()).map(E.cardStr).join(' ')}`);
+  log(`<b>${STREETS[S.street]}</b> : ${S.board.slice(0, boardNeed()).map(frCard).join(' · ')}`);
   S.phase = 'betting';
   const able = ableIdx();
   if (able.length <= 1) { // all-in: run it out
@@ -761,7 +771,7 @@ function decide(eq) {
   const clampRaise = v => { v = Math.max(minTo, Math.round(v * 2) / 2); if (v >= maxTo * 0.6) return maxTo; return Math.min(v, maxTo); };
 
   if (S.street === 0) {
-    const p = E.handPct(S.hero[0], S.hero[1]), cls = E.classOf(S.hero[0], S.hero[1]);
+    const p = E.handPct(S.hero[0], S.hero[1]), cls = frClass(S.hero[0], S.hero[1]);
     const open = OPEN[pos] || .2;
     const limpers = P().filter((q, i) => i !== h && q.inHand && i !== S.bbI && q.total === bb && S.raisesPre === 0).length;
     why.push(`${cls} est dans le top ${Math.round(p * 100)} % des mains de départ.`);
@@ -858,7 +868,7 @@ function render() {
   let info = '';
   if (S.hero.length === 2) {
     const bd = S.board.slice(0, Math.min(S.board.length, 5));
-    info = E.classOf(S.hero[0], S.hero[1]) + ` · top ${Math.round(E.handPct(S.hero[0], S.hero[1]) * 100)} %`;
+    info = frClass(S.hero[0], S.hero[1]) + ` · top ${Math.round(E.handPct(S.hero[0], S.hero[1]) * 100)} %`;
     if (bd.length >= 3) info = E.describe(E.evaluate(S.hero.concat(bd))) + ' · ' + info;
   }
   $('heroInfo').textContent = info;
@@ -1114,7 +1124,7 @@ render();
   const FW = 18, FH = 26; // feature size
   const ZONES = [
     ['h1', 'Ma carte 1'], ['h2', 'Ma carte 2'], ['b1', 'Tableau carte 1'], ['b5', 'Tableau carte 5'],
-    ['pot', 'Pot'], ['call', 'Montant à suivre'], ['me', 'Mon tapis'],
+    ['pot', 'Pot'], ['call', 'Montant à suivre'], ['me', 'Mon tapis'], ['dbtn', 'Bouton « D » (à tracer 1 fois)'],
     ['o1', 'Adv. 1'], ['o2', 'Adv. 2'], ['o3', 'Adv. 3'], ['o4', 'Adv. 4'], ['o5', 'Adv. 5'],
     ['o6', 'Adv. 6'], ['o7', 'Adv. 7'], ['o8', 'Adv. 8'], ['o9', 'Adv. 9'],
   ];
@@ -1125,10 +1135,10 @@ render();
     hist: {}, read: {}, ocrWorker: null, ocrBusy: false, ocrSig: {}, learning: false, skip: {}, advKey: '', advTok: 0,
   };
   window.__AUTO__ = A;
-  A._dbg = () => ({ feature, sim, match, px, boardZones, srcC, renderLive });
-  function save() { try { localStorage.setItem(KEY, JSON.stringify({ zones: A.zones, lib: A.lib, cfg: A.cfg })); } catch (e) { } }
+  A._dbg = () => ({ feature, sim, match, px, boardZones, srcC, renderLive, captureD, dealerCheck, findD, seatAnchors });
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ zones: A.zones, lib: A.lib, cfg: A.cfg, dtpl: A.dtpl })); } catch (e) { } }
   function load() {
-    try { const t = JSON.parse(localStorage.getItem(KEY) || 'null'); if (t) { A.zones = t.zones || {}; A.lib = t.lib || []; Object.assign(A.cfg, t.cfg || {}); if (!t.cfg || !t.cfg.v) { A.cfg.foldMode = 'cards'; A.cfg.v = 2; } } } catch (e) { }
+    try { const t = JSON.parse(localStorage.getItem(KEY) || 'null'); if (t) { A.zones = t.zones || {}; A.lib = t.lib || []; A.dtpl = t.dtpl || null; Object.assign(A.cfg, t.cfg || {}); if (!t.cfg || !t.cfg.v) { A.cfg.foldMode = 'cards'; A.cfg.v = 2; } } } catch (e) { }
   }
 
   const srcC = document.createElement('canvas'), srcX = srcC.getContext('2d', { willReadFrequently: true });
@@ -1454,6 +1464,78 @@ render();
     return { n: act.filter(Boolean).length, lums, act, keys: ks };
   }
 
+  /* ---------- bouton dealer → position ---------- */
+  const tplC = document.createElement('canvas'), tplX = tplC.getContext('2d', { willReadFrequently: true });
+  const grayOf = (d, n) => { const g = new Float32Array(n); for (let i = 0; i < n; i++) g[i] = .3 * d[4 * i] + .59 * d[4 * i + 1] + .11 * d[4 * i + 2]; return g; };
+  function captureD() {
+    const z = A.zones.dbtn; if (!z || !srcC.width) return;
+    const r = px(z), d = srcX.getImageData(r.x, r.y, r.w, r.h).data;
+    A.dtpl = { w: r.w, h: r.h, W: srcC.width, g: Array.from(grayOf(d, r.w * r.h), v => Math.round(v)) };
+    A.dSig = null; save();
+  }
+  function seatAnchors() {
+    const W = srcC.width, H = srcC.height, c = z => ({ x: (z.x + z.w / 2) * W, y: (z.y + z.h / 2) * H });
+    const hz = [A.zones.h1, A.zones.h2].filter(Boolean); if (!hz.length) return [];
+    const hc = hz.map(c), out = [{ hero: true, x: hc.reduce((a, p) => a + p.x, 0) / hc.length, y: hc.reduce((a, p) => a + p.y, 0) / hc.length }];
+    ZONES.map(z => z[0]).filter(k => k[0] === 'o' && A.zones[k]).forEach(k => out.push(Object.assign(c(A.zones[k]), { k })));
+    return out;
+  }
+  function findD(anchors) {
+    const t = A.dtpl; if (!t) return null;
+    const W = srcC.width, H = srcC.height, sc = W / t.W, tw = Math.max(6, Math.round(t.w * sc)), th = Math.max(6, Math.round(t.h * sc));
+    let tg;
+    if (tw === t.w && th === t.h) tg = Float32Array.from(t.g);
+    else {
+      tplC.width = t.w; tplC.height = t.h; const im = tplX.createImageData(t.w, t.h);
+      for (let i = 0; i < t.w * t.h; i++) { const v = t.g[i]; im.data[4 * i] = im.data[4 * i + 1] = im.data[4 * i + 2] = v; im.data[4 * i + 3] = 255; }
+      tplX.putImageData(im, 0, 0);
+      const c2 = document.createElement('canvas'); c2.width = tw; c2.height = th; const x2 = c2.getContext('2d', { willReadFrequently: true });
+      x2.imageSmoothingEnabled = true; x2.drawImage(tplC, 0, 0, tw, th); tg = grayOf(x2.getImageData(0, 0, tw, th).data, tw * th);
+    }
+    const N = tw * th; let mt = 0; for (let i = 0; i < N; i++) mt += tg[i]; mt /= N;
+    let stt = 0; for (let i = 0; i < N; i++) { tg[i] -= mt; stt += tg[i] * tg[i]; }
+    if (stt < 1) return null;
+    const pad = 0.08 * W;
+    const x0 = Math.max(0, Math.floor(Math.min(...anchors.map(a => a.x)) - pad)), x1 = Math.min(W, Math.ceil(Math.max(...anchors.map(a => a.x)) + pad));
+    const y0 = Math.max(0, Math.floor(Math.min(...anchors.map(a => a.y)) - pad)), y1 = Math.min(H, Math.ceil(Math.max(...anchors.map(a => a.y)) + pad));
+    const rw = x1 - x0, rh = y1 - y0; if (rw < tw + 2 || rh < th + 2) return null;
+    const G = grayOf(srcX.getImageData(x0, y0, rw, rh).data, rw * rh);
+    const S1 = new Float64Array((rw + 1) * (rh + 1)), S2 = new Float64Array((rw + 1) * (rh + 1));
+    for (let y = 0; y < rh; y++) { let a = 0, b = 0; for (let x = 0; x < rw; x++) { const v = G[y * rw + x]; a += v; b += v * v; S1[(y + 1) * (rw + 1) + x + 1] = S1[y * (rw + 1) + x + 1] + a; S2[(y + 1) * (rw + 1) + x + 1] = S2[y * (rw + 1) + x + 1] + b; } }
+    const box = (S, x, y) => S[(y + th) * (rw + 1) + x + tw] - S[y * (rw + 1) + x + tw] - S[(y + th) * (rw + 1) + x] + S[y * (rw + 1) + x];
+    const score = (x, y) => {
+      const sI = box(S1, x, y), sI2 = box(S2, x, y), v = sI2 - sI * sI / N; if (v < 1) return -1;
+      let cr = 0; for (let j = 0; j < th; j++) { const o = (y + j) * rw + x, q = j * tw; for (let i = 0; i < tw; i++) cr += G[o + i] * tg[q + i]; }
+      return cr / Math.sqrt(v * stt);
+    };
+    let bs = -2, bx = 0, by = 0;
+    for (let y = 0; y <= rh - th; y += 2) for (let x = 0; x <= rw - tw; x += 2) { const v = score(x, y); if (v > bs) { bs = v; bx = x; by = y; } }
+    for (let y = Math.max(0, by - 1); y <= Math.min(rh - th, by + 1); y++) for (let x = Math.max(0, bx - 1); x <= Math.min(rw - tw, bx + 1); x++) { const v = score(x, y); if (v > bs) { bs = v; bx = x; by = y; } }
+    return bs >= 0.55 ? { x: x0 + bx + tw / 2, y: y0 + by + th / 2, s: bs } : { s: bs };
+  }
+  function dealerCheck() {
+    if (!A.dtpl || !srcC.width) return;
+    const sig = A.cur ? A.cur.hero.map(x => x && x.c).join(',') : '', now = Date.now();
+    if (sig === A.dSig && now - (A.dT || 0) < 8000) return;
+    if (now - (A.dT || 0) < 1200) return;
+    A.dT = now; A.dSig = sig;
+    const an = seatAnchors(); if (an.length < 3) { A.posInfo = 'Trace « Ma carte 1/2 » et au moins 2 zones Adv. pour la position auto.'; return; }
+    const d = findD(an);
+    if (!d || d.x === undefined) { A.posInfo = `Bouton D introuvable${d ? ' (score ' + d.s.toFixed(2) + ')' : ''}.`; A.posAuto = null; return; }
+    const cx = an.reduce((a, p) => a + p.x, 0) / an.length, cy = an.reduce((a, p) => a + p.y, 0) / an.length;
+    const ring = an.slice().sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx)); // clockwise on screen
+    let bi = 0, bd = 1e9; ring.forEach((a, i) => { const dd = Math.hypot(a.x - d.x, a.y - d.y); if (dd < bd) { bd = dd; bi = i; } });
+    if (bd > 0.25 * srcC.width) { A.posInfo = 'Bouton D trouvé trop loin de tous les sièges.'; A.posAuto = null; return; }
+    const m = ring.length, hi = ring.findIndex(a => a.hero), k = (hi - bi + m) % m;
+    let lab;
+    if (m === 2) lab = k === 0 ? 'BTN' : 'BB';
+    else if (k === 0) lab = 'BTN'; else if (k === 1) lab = 'SB'; else if (k === 2) lab = 'BB';
+    else { const rest = m - 3, extra = Math.max(0, rest - MIDPOS.length), labels = Array(extra).fill('UTG').concat(MIDPOS.slice(Math.max(0, MIDPOS.length - rest))); lab = labels[k - 3] || 'UTG'; }
+    const key = lab in OPEN ? lab : /^UTG/.test(lab) ? 'UTG' : 'MP';
+    A.posInfo = `Bouton D repéré chez ${ring[bi].hero ? 'toi' : 'le siège ' + (ring[bi].k || '').slice(1)} → tu es « ${posName(key)} » (${m} joueurs à table).`;
+    if (A.posAuto !== key) { A.posAuto = key; A.posLock = false; }
+    if (!A.posLock && A.cfg.pos !== key) { A.cfg.pos = key; A.advKey = ''; save(); }
+  }
   function tick(force) {
     if (!grab()) { drawOverlay(); return; }
     const hero = readCards([A.zones.h1, A.zones.h2].filter(Boolean), 'h', 'h');
@@ -1462,6 +1544,7 @@ render();
     // board must be contiguous: stop at first empty slot
     const fe = board.findIndex(x => !x); if (fe >= 0) board = board.slice(0, fe);
     A.cur = { hero, board, opp: oppActive() };
+    dealerCheck();
     ocrZones();
     drawOverlay();
     renderLive();
@@ -1495,13 +1578,13 @@ render();
     else if (A.zones.call) {
       const raw = A.read.callRaw;
       if (raw === undefined) callBlock = A.ocrErr ? 'OCR indisponible : saisis le montant à suivre ci-dessus.' : 'Lecture du montant à suivre en cours…';
-      else if (A.read.call == null && raw !== '') callBlock = `Montant à suivre illisible (lu « ${raw} »). Saisis-le ci-dessus (0 = parole).`;
+      else if (A.read.call == null) { call = 0; if (raw) callNote = `aucun chiffre lu (« ${raw} ») : je comprends « parole » (pas de mise à suivre)`; }
       else call = A.read.call || 0;
     }
-    if (!callBlock && A.callOv == null && pre && call === 0 && A.cfg.pos !== 'BB') {
+    if (!callBlock && A.callOv == null && pre && call === 0 && A.cfg.pos !== 'BB' && !A.posAuto) {
       call = A.cfg.pos === 'SB' ? bbv / 2 : bbv; callNote = `lu 0 mais tu n'es pas en grosse blinde : je suppose ${fmt(call)} (corrige si besoin)`;
     }
-    const cardTxt = a => a.map(x => x ? (x.c !== null ? E.cardStr(x.c) : '??') : '—').join(' ') || '—';
+    const cardTxt = a => a.map(x => x ? (x.c !== null ? frCard(x.c) : '??') : '—').join(' · ') || '—';
     const typing = document.activeElement && document.activeElement.id === 'aCallIn';
     if (!typing) $('aLive').innerHTML = `<table class="k">
       <tr><td>Mes cartes</td><td>${cardTxt(c.hero)}</td></tr>
@@ -1516,7 +1599,7 @@ render();
         ${callNote ? `<div class="muted">${callNote}</div>` : ''}</td></tr>
       <tr><td>Ma position</td><td><span class="chips" style="justify-content:flex-end">${Object.keys(OPEN).map(p => `<span class="chip ${A.cfg.pos === p ? 'on' : ''}" data-p="${p}" title="${POSFR[p][1]}" style="padding:4px 8px">${POSFR[p][0]} <small>(${p})</small></span>`).join('')}</span></td></tr>
     </table>
-    <div class="muted" style="margin:4px 0"><b>${posName(A.cfg.pos)}</b> — ${(POSFR[A.cfg.pos] || [])[1] || ''}</div>${POS_HELP_HTML}${A.ocrErr ? `<div class="muted">${A.ocrErr}</div>` : ''}${(A.zones.pot && !A.ocrWorker) ? '<div class="muted"><span class="spin"></span> Chargement de l\'OCR…</div>' : ''}`;
+    <div class="muted" style="margin:4px 0">${A.posInfo ? A.posInfo + '<br>' : (A.dtpl ? '' : 'Position auto : trace la zone « Bouton D » sur le D visible (calibration) pour qu\'elle soit détectée toute seule.<br>')}<b>${posName(A.cfg.pos)}</b> — ${(POSFR[A.cfg.pos] || [])[1] || ''}</div>${POS_HELP_HTML}${A.ocrErr ? `<div class="muted">${A.ocrErr}</div>` : ''}${(A.zones.pot && !A.ocrWorker) ? '<div class="muted"><span class="spin"></span> Chargement de l\'OCR…</div>' : ''}`;
     const ci = $('aCallIn');
     if (ci && !typing) {
       ci.onchange = () => { const v = parseFloat(ci.value.replace(',', '.')); A.callOv = isFinite(v) && ci.value !== '' ? Math.max(0, v) : null; A.advKey = ''; ci.blur(); renderLive(); };
@@ -1527,7 +1610,7 @@ render();
       if (d === 0) A.cfg.nOppOverride = null; else A.cfg.nOppOverride = Math.max(1, Math.min(9, (A.cfg.nOppOverride != null ? A.cfg.nOppOverride : (nOppAuto || 1)) + d));
       save(); renderLive();
     });
-    $('aLive').querySelectorAll('[data-p]').forEach(b => b.onclick = () => { A.cfg.pos = b.dataset.p; save(); A.advKey = ''; renderLive(); });
+    $('aLive').querySelectorAll('[data-p]').forEach(b => b.onclick = () => { A.posLock = true; A.cfg.pos = b.dataset.p; save(); A.advKey = ''; renderLive(); });
     if (!heroOk) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">${c.hero.length < 2 ? 'Zones « Ma carte 1/2 » à calibrer.' : 'En attente de tes cartes…'}</div></div>`; A.advKey = ''; return; }
     if (!boardOk) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">Lecture du tableau en cours…</div></div>`; return; }
     if (callBlock) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">${callBlock}</div></div>`; A.advKey = ''; A.advTok++; return; }
@@ -1574,7 +1657,7 @@ render();
     const why = [], alt = []; let rec, amt = 0;
     const capMe = v => ctx.me ? Math.min(v, ctx.me + call) : v;
     if (ctx.board.length === 0) {
-      const p = E.handPct(ctx.hero[0], ctx.hero[1]), cls = E.classOf(ctx.hero[0], ctx.hero[1]);
+      const p = E.handPct(ctx.hero[0], ctx.hero[1]), cls = frClass(ctx.hero[0], ctx.hero[1]);
       const open = OPEN[A.cfg.pos] || .2;
       why.push(`${cls} : top ${Math.round(p * 100)} % des mains.`);
       if (eq.level === 0) {
@@ -1609,7 +1692,7 @@ render();
       if (d.flushDraw || d.oesd || d.gutshot) why.push('Tirages : ' + [d.flushDraw && 'couleur', d.oesd && 'quinte bilatérale', d.gutshot && 'quinte ventrale'].filter(Boolean).join(', ') + '.');
     }
     if (amt) { amt = capMe(Math.round(amt / bb * 2) / 2 * bb); if (ctx.me && amt >= (ctx.me + call) * .6) { rec = 'ALLIN'; amt = ctx.me + call; } }
-    const made = ctx.board.length >= 3 ? E.describe(E.evaluate(ctx.hero.concat(ctx.board))) : E.classOf(ctx.hero[0], ctx.hero[1]);
+    const made = ctx.board.length >= 3 ? E.describe(E.evaluate(ctx.hero.concat(ctx.board))) : frClass(ctx.hero[0], ctx.hero[1]);
     $('aAdv').innerHTML = `<div class="adv ${rec}">
       <div class="muted">${made} · ${eq.nSim} adv. simulé${eq.nSim > 1 ? 's' : ''}</div>
       <div class="rec">${REC[rec]}${amt && rec !== 'CALL' ? ' ' + fmt(amt) : rec === 'CALL' ? ' ' + fmt(call) : ''}</div>
@@ -1647,6 +1730,7 @@ render();
     const z = { x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1), w: Math.abs(d.x1 - d.x0), h: Math.abs(d.y1 - d.y0) };
     if (z.w < 0.005 || z.h < 0.005) { drawOverlay(); return; }
     A.zones[A.sel] = z; save();
+    if (A.sel === 'dbtn') captureD();
     // advance to next zone automatically
     const i = ZONES.findIndex(x => x[0] === A.sel);
     if (i >= 0 && i < ZONES.length - 1) A.sel = ZONES[i + 1][0];
