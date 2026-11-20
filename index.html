@@ -95,6 +95,11 @@ table.k td:last-child{text-align:right;font-weight:700}
 .pick .pc{width:auto;height:44px;font-size:13px}
 .pick .pc .r,.pick .pc .s{font-size:14px}
 .pick .pc.used{opacity:.15;pointer-events:none}
+.sugg{display:flex;gap:8px;margin-bottom:10px}
+.sugg .pc{width:64px;height:88px;font-size:20px;cursor:pointer}
+.sugg .pc .r,.sugg .pc .s{font-size:24px}
+.sugg .pc.best{outline:3px solid var(--gold)}
+.pick{grid-template-columns:repeat(13,1fr)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{padding:8px 12px;border-radius:20px;border:1px solid var(--line);background:#0b2a1e;cursor:pointer;font-weight:600}
 .chip.on{background:var(--gold);color:#1d1600;border-color:var(--gold)}
@@ -163,6 +168,7 @@ body.auto main>section:not(#pAuto){display:none}
     <button class="btn sm" id="bAllStack" style="align-self:flex-end">Appliquer à tous</button>
   </div>
   <div class="lbl" style="text-align:left;margin-top:12px">Joueurs — <b>Moi</b> = ta place, <b>BTN</b> = bouton (donneur)</div>
+  <div id="posHelpSet"></div>
   <div class="setp" id="setPlayers"></div>
   <div class="row" style="margin-top:10px">
     <button class="btn gold grow" id="bApply">Valider et lancer une main</button>
@@ -216,7 +222,9 @@ body.auto main>section:not(#pAuto){display:none}
   <div class="row" style="margin-bottom:8px"><b class="grow" id="pickTitle">Choisis une carte</b>
     <button class="btn sm red" id="bPickClear">Retirer</button><button class="btn sm" id="bPickClose">✕</button></div>
   <canvas id="pickCrop" class="hidden" style="display:block;margin:0 auto 8px;max-height:110px;border-radius:6px;border:2px solid var(--gold)"></canvas>
+  <div id="pickSugg" class="hidden"></div>
   <div class="pick" id="pickGrid"></div>
+  <button class="btn sm hidden" id="pickMore" style="margin-top:8px;width:100%"></button>
 </div></div>
 
 <script>
@@ -489,6 +497,32 @@ const pct = v => (v * 100).toFixed(1).replace('.', ',') + ' %';
 const STREETS = ['Préflop', 'Flop', 'Turn', 'River', 'Abattage'];
 const OPEN = { 'UTG': .12, 'UTG+1': .14, 'UTG+2': .16, 'MP': .18, 'LJ': .20, 'HJ': .24, 'CO': .30, 'BTN': .45, 'SB': .38, 'BB': .50, 'BTN/SB': .80 };
 const MIDPOS = ['UTG', 'UTG+1', 'UTG+2', 'MP', 'LJ', 'HJ', 'CO'];
+/* Noms français des positions : [nom court, description] */
+const POSFR = {
+  'UTG': ['Début de table', 'Premier à parler avant le flop (à gauche de la grosse blinde). Place la plus difficile : joue peu de mains, que des fortes.'],
+  'UTG+1': ['Début de table', 'Un cran après le premier à parler. Reste prudent.'],
+  'UTG+2': ['Début de table', 'Début/milieu de table. Reste plutôt prudent.'],
+  'MP': ['Milieu de table', 'Entre le début de table et l\'avant-bouton. Tu peux ouvrir un peu plus large.'],
+  'LJ': ['Milieu de table', 'Milieu de table (« lojack »).'],
+  'HJ': ['Milieu de table', 'Milieu de table, juste avant l\'avant-bouton (« hijack »).'],
+  'CO': ['Avant-bouton', 'Cutoff : juste à droite du bouton. Très bonne place, tu peux jouer beaucoup de mains.'],
+  'BTN': ['Bouton (donneur)', 'Le donneur. Tu parles en dernier après le flop : meilleure place, tu peux jouer le plus de mains.'],
+  'SB': ['Petite blinde', 'À gauche du bouton. Tu as déjà misé la petite blinde. Place ingrate : tu parles en premier après le flop.'],
+  'BB': ['Grosse blinde', 'Deux places à gauche du bouton. Tu as déjà misé la grosse blinde ; tu parles en dernier avant le flop et peux souvent checker.'],
+  'BTN/SB': ['Bouton + petite blinde', 'À deux joueurs : le donneur est aussi petite blinde et parle en premier avant le flop, en dernier ensuite.'],
+};
+const posName = p => (POSFR[p] ? POSFR[p][0] : p);
+const POS_HELP_HTML = `<details class="muted" style="margin:6px 0"><summary style="cursor:pointer">❓ C'est quoi les positions (UTG, MP, CO, BTN, SB, BB) ?</summary>
+  <p style="margin:6px 0">La position = ta place par rapport au <b>bouton</b> (le jeton « D » du donneur). Plus tu parles <b>tard</b>, plus tu as d'informations, donc plus tu peux jouer de mains.</p>
+  <ul style="margin:4px 0;padding-left:18px">
+    <li><b>BTN</b> = Bouton (donneur) : meilleure place.</li>
+    <li><b>SB</b> = Petite blinde : le joueur juste à <b>gauche</b> du bouton.</li>
+    <li><b>BB</b> = Grosse blinde : 2<sup>e</sup> à gauche du bouton.</li>
+    <li><b>UTG</b> = « Début de table » : 1<sup>er</sup> à parler avant le flop (à gauche de la BB).</li>
+    <li><b>MP</b> = « Milieu de table » : entre UTG et CO.</li>
+    <li><b>CO</b> = « Avant-bouton » (cutoff) : juste à <b>droite</b> du bouton.</li>
+  </ul>
+  <p style="margin:4px 0">Astuce : repère le bouton, puis compte dans le sens des aiguilles d'une montre : SB, BB, puis début de table… et le dernier avant le bouton est l'avant-bouton.</p></details>`;
 
 /* ---------------- STATE ---------------- */
 let S;
@@ -842,8 +876,8 @@ function renderPlayers(pos) {
     d.className = 'pl' + (i === S.toAct ? ' act' : '') + (S.phase !== 'idle' && !p.inHand ? ' out' : '') + (isHero ? ' hero' : '');
     const status = S.phase === 'idle' ? '' : !p.dealt ? 'absent' : !p.inHand ? 'couché' : p.allIn ? 'TAPIS' : i === S.toAct ? 'à parler' : '';
     const ps = pos[i] || (i === S.cfg.button ? 'BTN' : '—');
-    d.innerHTML = `<div class="pos ${ps.startsWith('BTN') ? 'btnpos' : ''}">${ps}</div>
-      <div><div class="nm">${esc(p.name)}${isHero ? ' (moi)' : ''}</div><div class="stk">Tapis ${fmt(p.stack)}${p.total ? ' · investi ' + fmt(p.total) : ''}</div></div>
+    d.innerHTML = `<div class="pos ${ps.startsWith('BTN') ? 'btnpos' : ''}" title="${posName(ps)} — ${POSFR[ps] ? POSFR[ps][1] : ''}">${ps}</div>
+      <div><div class="nm">${esc(p.name)}${isHero ? ' (moi)' : ''}${POSFR[ps] ? ` <span class="muted">· ${posName(ps)}</span>` : ''}</div><div class="stk">Tapis ${fmt(p.stack)}${p.total ? ' · investi ' + fmt(p.total) : ''}</div></div>
       <div><div class="bet">${p.bet ? fmt(p.bet) : ''}</div><div class="st">${status}</div></div>`;
     if (!isHero && ['betting', 'deal'].includes(S.phase) && p.inHand) {
       const r = rangeOf(p);
@@ -945,15 +979,36 @@ function renderAdvice() {
 /* ---------------- CARD PICKER ---------------- */
 let pickT = null;
 function usedCards() { return new Set(S.hero.concat(S.board)); }
-function openPick(target, idx, cb) {
+function openPick(target, idx, cb, extra) {
   if (target === 'board' && (S.phase === 'idle' || idx >= boardNeed())) return;
-  pickT = { target, idx, cb };
+  pickT = { target, idx, cb, extra };
   $('pickCrop').classList.toggle('hidden', target !== 'learn');
+  $('pickSugg').classList.add('hidden'); $('pickMore').classList.add('hidden');
   if (target === 'learn') {
+    const ex = extra || {}, used = new Set(ex.used || []);
+    const choose = c => { const f = pickT.cb; pickT.cb = null; closePick(); f(c); };
+    const redS = ex.red ? [1, 2] : [0, 3];
     $('pickTitle').textContent = 'Quelle est cette carte ? (apprise une seule fois)';
     $('bPickClear').classList.add('hidden');
-    const g = $('pickGrid'); g.innerHTML = '';
-    for (let s = 0; s < 4; s++) for (let r = 12; r >= 0; r--) { const c = (r << 2) | s; g.appendChild(cardEl(c, () => { const f = pickT.cb; pickT.cb = null; closePick(); f(c); })); }
+    const sg = (ex.sugg || []).filter(c => !used.has(c)).slice(0, 4);
+    const sb = $('pickSugg'); sb.innerHTML = '';
+    if (sg.length) {
+      sb.classList.remove('hidden');
+      const t = document.createElement('div'); t.className = 'muted'; t.style.margin = '2px 0 6px';
+      t.innerHTML = 'Je propose (clique pour <b>confirmer</b>) :'; sb.appendChild(t);
+      const row = document.createElement('div'); row.className = 'sugg';
+      sg.forEach((c, k) => { const el = cardEl(c, () => choose(c)); if (k === 0) el.classList.add('best'); row.appendChild(el); });
+      sb.appendChild(row);
+    }
+    let all = false;
+    const draw = () => {
+      const g = $('pickGrid'); g.innerHTML = '';
+      for (let s = 0; s < 4; s++) { if (!all && !redS.includes(s)) continue; for (let r = 12; r >= 0; r--) { const c = (r << 2) | s; const el = cardEl(c, () => choose(c)); if (used.has(c)) el.classList.add('used'); g.appendChild(el); } }
+      const mb = $('pickMore'); mb.classList.remove('hidden');
+      mb.textContent = all ? 'Masquer les couleurs de l\'autre teinte' : `Autres cartes (${ex.red ? '♥ ♦' : '♠ ♣'} seulement affichés — voir les 4 couleurs)`;
+    };
+    $('pickMore').onclick = () => { all = !all; draw(); };
+    draw();
     $('mPick').classList.add('on'); return;
   }
   $('pickTitle').textContent = target === 'hero' ? `Ta carte ${idx + 1}` : `Tableau — carte ${idx + 1}`;
@@ -1043,6 +1098,7 @@ $('bNew').onclick = () => {
   startHand(S.phase !== 'idle');
 };
 
+$('posHelpSet').innerHTML = POS_HELP_HTML;
 load();
 if (S.phase === 'idle') openSettings();
 render();
@@ -1069,7 +1125,7 @@ render();
     hist: {}, read: {}, ocrWorker: null, ocrBusy: false, ocrSig: {}, learning: false, skip: {}, advKey: '', advTok: 0,
   };
   window.__AUTO__ = A;
-  A._dbg = () => ({ feature, sim, match, px, boardZones, srcC });
+  A._dbg = () => ({ feature, sim, match, px, boardZones, srcC, renderLive });
   function save() { try { localStorage.setItem(KEY, JSON.stringify({ zones: A.zones, lib: A.lib, cfg: A.cfg })); } catch (e) { } }
   function load() {
     try { const t = JSON.parse(localStorage.getItem(KEY) || 'null'); if (t) { A.zones = t.zones || {}; A.lib = t.lib || []; Object.assign(A.cfg, t.cfg || {}); } } catch (e) { }
@@ -1311,6 +1367,23 @@ render();
     });
     return out;
   }
+  // propose the most likely cards for an unknown one: library neighbours + rank guess + colour filter
+  function suggest(f, grp) {
+    const used = new Set();
+    if (A.cur) A.cur.hero.concat(A.cur.board).forEach(x => x && x.c !== null && x.c !== undefined && used.add(x.c));
+    const per = {}, rk = {};
+    for (const e of A.lib) {
+      if (!e.f || e.f.r === undefined) continue;
+      const bonus = e.g === grp ? 0.02 : 0;
+      if (e.f.red === f.red) { const v = sim(f, e.f) + bonus; if (per[e.c] === undefined || v > per[e.c]) per[e.c] = v; }
+      const rv = ncc(f.r, e.f.r) + bonus, r = e.c >> 2; if (rk[r] === undefined || rv > rk[r]) rk[r] = rv;
+    }
+    const out = [];
+    Object.keys(per).map(Number).filter(c => per[c] > 0.5 && !used.has(c)).sort((a, b) => per[b] - per[a]).slice(0, 3).forEach(c => out.push(c));
+    const rs = Object.keys(rk).map(Number).sort((a, b) => rk[b] - rk[a]);
+    if (rs.length && rk[rs[0]] > 0.7) for (const s of (f.red ? [1, 2] : [0, 3])) { const c = (rs[0] << 2) | s; if (!out.includes(c) && !used.has(c)) out.push(c); }
+    return { sugg: out.slice(0, 4), red: f.red, used: [...used] };
+  }
   function askLearn(z, f, grp) {
     A.learning = true;
     const r = px(z), cv = $('pickCrop');
@@ -1319,7 +1392,7 @@ render();
     const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(srcC, r.x, r.y, r.w, r.h, 0, 0, cv.width, cv.height);
     const cb = c => { A.lib.push({ g: grp, c, f }); save(); A.learning = false; libInfo(); tick(true); };
     cb.cancel = () => { A.learning = false; };
-    openPick('learn', 0, cb);
+    openPick('learn', 0, cb, suggest(f, grp));
   }
   function oppActive() {
     const ks = ZONES.map(z => z[0]).filter(k => k[0] === 'o' && A.zones[k]);
@@ -1372,17 +1445,42 @@ render();
     const boardOk = known(c.board) && [0, 3, 4, 5].includes(c.board.length);
     const nOppAuto = c.opp ? c.opp.n : null;
     const nOpp = A.cfg.nOppOverride != null ? A.cfg.nOppOverride : nOppAuto;
-    const pot = A.read.pot, call = A.zones.call ? (A.read.call || 0) : 0, me = A.read.me;
+    const pot = A.read.pot, me = A.read.me, pre = c.board.length === 0, bbv = A.cfg.bb || 1;
+    // reset a manual « à suivre » override when the hand changes
+    const hk = c.hero.map(x => x && x.c).join(',') + '|' + c.board.length;
+    if (A.callOvKey !== hk) { A.callOvKey = hk; A.callOv = null; }
+    let call = 0, callBlock = null, callNote = '';
+    if (A.callOv != null) { call = A.callOv; callNote = 'saisi à la main'; }
+    else if (A.zones.call) {
+      const raw = A.read.callRaw;
+      if (raw === undefined) callBlock = A.ocrErr ? 'OCR indisponible : saisis le montant à suivre ci-dessus.' : 'Lecture du montant à suivre en cours…';
+      else if (A.read.call == null && raw !== '') callBlock = `Montant à suivre illisible (lu « ${raw} »). Saisis-le ci-dessus (0 = parole).`;
+      else call = A.read.call || 0;
+    }
+    if (!callBlock && A.callOv == null && pre && call === 0 && A.cfg.pos !== 'BB') {
+      call = A.cfg.pos === 'SB' ? bbv / 2 : bbv; callNote = `lu 0 mais tu n'es pas en grosse blinde : je suppose ${fmt(call)} (corrige si besoin)`;
+    }
     const cardTxt = a => a.map(x => x ? (x.c !== null ? E.cardStr(x.c) : '??') : '—').join(' ') || '—';
-    $('aLive').innerHTML = `<table class="k">
+    const typing = document.activeElement && document.activeElement.id === 'aCallIn';
+    if (!typing) $('aLive').innerHTML = `<table class="k">
       <tr><td>Mes cartes</td><td>${cardTxt(c.hero)}</td></tr>
       <tr><td>Tableau (${['Préflop', '', '', 'Flop', 'Turn', 'River'][c.board.length] || '?'})</td><td>${cardTxt(c.board)}</td></tr>
       <tr><td>Adversaires en jeu</td><td>
         <button class="btn sm" data-o="-1">−</button> ${nOpp == null ? '?' : nOpp}${A.cfg.nOppOverride != null ? ' (forcé)' : ''} <button class="btn sm" data-o="1">+</button>
         ${A.cfg.nOppOverride != null ? '<button class="btn sm" data-o="0">auto</button>' : ''}</td></tr>
-      <tr><td>Pot / à suivre / mon tapis</td><td>${fmt(pot)} / ${fmt(call)} / ${fmt(me)}</td></tr>
-      <tr><td>Ma position</td><td><span class="chips" style="justify-content:flex-end">${Object.keys(OPEN).map(p => `<span class="chip ${A.cfg.pos === p ? 'on' : ''}" data-p="${p}" style="padding:4px 8px">${p}</span>`).join('')}</span></td></tr>
-    </table>${A.ocrErr ? `<div class="muted">${A.ocrErr}</div>` : ''}${(A.zones.pot && !A.ocrWorker) ? '<div class="muted"><span class="spin"></span> Chargement de l\'OCR…</div>' : ''}`;
+      <tr><td>Pot / mon tapis</td><td>${fmt(pot)} / ${fmt(me)}</td></tr>
+      <tr><td>À suivre ${A.read.callRaw ? `<span class="muted">(lu « ${A.read.callRaw} »)</span>` : ''}</td><td>
+        <input type="number" id="aCallIn" step="any" min="0" placeholder="${callBlock ? '?' : fmt(call)}" value="${A.callOv != null ? A.callOv : ''}" style="width:90px;text-align:right">
+        ${A.callOv != null ? '<button class="btn sm" id="aCallAuto">auto</button>' : ''}
+        ${callNote ? `<div class="muted">${callNote}</div>` : ''}</td></tr>
+      <tr><td>Ma position</td><td><span class="chips" style="justify-content:flex-end">${Object.keys(OPEN).map(p => `<span class="chip ${A.cfg.pos === p ? 'on' : ''}" data-p="${p}" title="${POSFR[p][1]}" style="padding:4px 8px">${POSFR[p][0]} <small>(${p})</small></span>`).join('')}</span></td></tr>
+    </table>
+    <div class="muted" style="margin:4px 0"><b>${posName(A.cfg.pos)}</b> — ${(POSFR[A.cfg.pos] || [])[1] || ''}</div>${POS_HELP_HTML}${A.ocrErr ? `<div class="muted">${A.ocrErr}</div>` : ''}${(A.zones.pot && !A.ocrWorker) ? '<div class="muted"><span class="spin"></span> Chargement de l\'OCR…</div>' : ''}`;
+    const ci = $('aCallIn');
+    if (ci && !typing) {
+      ci.onchange = () => { const v = parseFloat(ci.value.replace(',', '.')); A.callOv = isFinite(v) && ci.value !== '' ? Math.max(0, v) : null; A.advKey = ''; ci.blur(); renderLive(); };
+      const ca = $('aCallAuto'); if (ca) ca.onclick = () => { A.callOv = null; A.advKey = ''; renderLive(); };
+    }
     $('aLive').querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
       const d = +b.dataset.o;
       if (d === 0) A.cfg.nOppOverride = null; else A.cfg.nOppOverride = Math.max(1, Math.min(9, (A.cfg.nOppOverride != null ? A.cfg.nOppOverride : (nOppAuto || 1)) + d));
@@ -1391,6 +1489,7 @@ render();
     $('aLive').querySelectorAll('[data-p]').forEach(b => b.onclick = () => { A.cfg.pos = b.dataset.p; save(); A.advKey = ''; renderLive(); });
     if (!heroOk) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">${c.hero.length < 2 ? 'Zones « Ma carte 1/2 » à calibrer.' : 'En attente de tes cartes…'}</div></div>`; A.advKey = ''; return; }
     if (!boardOk) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">Lecture du tableau en cours…</div></div>`; return; }
+    if (callBlock) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">${callBlock}</div></div>`; A.advKey = ''; A.advTok++; return; }
     const ctx = { hero: c.hero.map(x => x.c), board: c.board.map(x => x.c), nOpp: Math.max(1, nOpp || 1), pot: pot || 0, call, me };
     const key = JSON.stringify([ctx, A.cfg.style, A.cfg.pos, A.cfg.bb]);
     if (key === A.advKey) return;
@@ -1439,8 +1538,8 @@ render();
       why.push(`${cls} : top ${Math.round(p * 100)} % des mains.`);
       if (eq.level === 0) {
         if (call === 0) { rec = p <= .12 ? 'RAISE' : 'CHECK'; amt = 3.5 * bb; why.push(rec === 'RAISE' ? 'Main forte : on relance.' : 'Tour gratuit.'); }
-        else if (p <= open) { rec = 'RAISE'; amt = 2.5 * bb + (pot > 1.5 * bb + 0.01 ? (pot - 1.5 * bb) : 0); why.push(`Seuil d'ouverture ${A.cfg.pos} : top ${Math.round(open * 100)} %. Relance ≈ 2,5 BB (+ les limpers).`); }
-        else { rec = 'FOLD'; why.push(`Hors du seuil d'ouverture ${A.cfg.pos} (top ${Math.round(open * 100)} %).`); }
+        else if (p <= open) { rec = 'RAISE'; amt = 2.5 * bb + (pot > 1.5 * bb + 0.01 ? (pot - 1.5 * bb) : 0); why.push(`Seuil d'ouverture « ${posName(A.cfg.pos)} » : top ${Math.round(open * 100)} %. Relance ≈ 2,5 BB (+ les limpers).`); }
+        else { rec = 'FOLD'; why.push(`Hors du seuil d'ouverture « ${posName(A.cfg.pos)} » (top ${Math.round(open * 100)} %).`); }
       } else if (eq.level === 1) {
         if (p <= .05) { rec = 'RAISE'; amt = call * 3.5; why.push('Premium face à une relance : 3-bet.'); }
         else if (Eq >= potOdds + .04 && p <= .32) { rec = 'CALL'; why.push(`Équité ${pct(Eq)} > cote ${pct(potOdds)} (+4 %).`); }
