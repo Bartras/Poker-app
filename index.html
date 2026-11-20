@@ -170,6 +170,14 @@ body.auto main>section:not(#pAuto){display:none}
     <div id="aLibDetail" style="margin-top:8px"></div>
     <div class="row" style="margin-top:8px"><button class="btn sm" id="aLibCopy">Compléter l'autre groupe avec ces cartes</button><span class="muted" id="aLibInfo2"></span></div>
   </details>
+  <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">Sauvegarde (exporter / importer)</summary>
+    <p class="muted">Enregistre dans un fichier tes cartes apprises, tes zones calibrées, le bouton D et tes réglages. Utile avant de vider le navigateur ou pour passer sur un autre appareil.</p>
+    <div class="row">
+      <button class="btn sm gold" id="aExp">⬇ Exporter</button>
+      <label class="btn sm" style="display:flex;align-items:center">⬆ Importer<input type="file" id="aImp" accept=".json,application/json" hidden></label>
+      <span class="muted" id="aBkInfo"></span>
+    </div>
+  </details>
 </section>
 
 <!-- SETTINGS -->
@@ -1849,6 +1857,31 @@ render();
   $('aClearLib').onclick = () => { if (Date.now() - clr > 3000) { clr = Date.now(); $('aClearLib').textContent = 'Confirmer ?'; setTimeout(() => $('aClearLib').textContent = 'Oublier les cartes apprises', 3000); return; } A.lib = []; save(); libInfo(); $('aClearLib').textContent = 'Oublier les cartes apprises'; };
   const bindCfg = (id, k, num) => { const el = $(id); el.value = A.cfg[k]; el.onchange = () => { A.cfg[k] = num ? parseFloat(el.value) : el.value; save(); A.advKey = ''; tick(true); }; };
   bindCfg('aBB', 'bb', true); bindCfg('aStyle', 'style', true); bindCfg('aFoldMode', 'foldMode'); bindCfg('aInt', 'interval', true); bindCfg('aThr', 'thr', true); bindCfg('aNum', 'num');
+  /* ---------- export / import ---------- */
+  $('aExp').onclick = () => {
+    const data = { app: 'poker-conseiller', v: 1, date: new Date().toISOString(), zones: A.zones, lib: A.lib, cfg: A.cfg, dtpl: A.dtpl || null };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+    a.download = 'poker-memoire-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    $('aBkInfo').textContent = `Exporté : ${A.lib.length} exemples de cartes, ${Object.keys(A.zones).length} zones.`;
+  };
+  $('aImp').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      if (!d || d.app !== 'poker-conseiller' || !Array.isArray(d.lib)) throw new Error('fichier non reconnu');
+      const ok = x => x && (x.g === 'h' || x.g === 'b') && Number.isInteger(x.c) && x.c >= 0 && x.c < 52 && x.f && Array.isArray(x.f.r) && Array.isArray(x.f.w) && x.f.w.length === 352;
+      const lib = d.lib.filter(ok);
+      if (!confirm(`Importer ${lib.length} exemples de cartes et ${Object.keys(d.zones || {}).length} zones ?\nCela REMPLACE ta mémoire actuelle (${A.lib.length} exemples, ${Object.keys(A.zones).length} zones).`)) return;
+      A.lib = lib; A.zones = d.zones && typeof d.zones === 'object' ? d.zones : {}; A.dtpl = d.dtpl && Array.isArray(d.dtpl.g) ? d.dtpl : null;
+      if (d.cfg && typeof d.cfg === 'object') Object.assign(A.cfg, d.cfg);
+      A.hist = {}; A.ocrSig = {}; A.advKey = ''; A.dSig = null; save();
+      [['aBB', 'bb'], ['aStyle', 'style'], ['aFoldMode', 'foldMode'], ['aInt', 'interval'], ['aThr', 'thr'], ['aNum', 'num']].forEach(([id, k]) => $(id).value = A.cfg[k]);
+      zoneBtns(); libInfo(); drawOverlay(); tick(true);
+      $('aBkInfo').textContent = `Importé : ${lib.length} exemples, ${Object.keys(A.zones).length} zones.` + (lib.length < d.lib.length ? ` (${d.lib.length - lib.length} ignorés)` : '');
+    } catch (err) { $('aBkInfo').textContent = 'Import impossible : ' + (err.message || err); }
+  };
   $('aLibD').addEventListener('toggle', libUI);
   $('aShare').onchange = e => { A.cfg.share = e.target.checked; save(); A.advKey = ''; };
   $('aAutoAsk').onchange = e => { A.cfg.autoAsk = e.target.checked; save(); };
