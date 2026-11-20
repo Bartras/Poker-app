@@ -95,6 +95,10 @@ table.k td:last-child{text-align:right;font-weight:700}
 .pick .pc{width:auto;height:44px;font-size:13px}
 .pick .pc .r,.pick .pc .s{font-size:14px}
 .pick .pc.used{opacity:.15;pointer-events:none}
+.lib .pc{position:relative;height:40px;font-size:12px}
+.lib .pc .n{position:absolute;right:1px;bottom:0;font-size:10px;background:#1d5a3c;color:#fff;border-radius:6px;padding:0 3px}
+.lib .pc.sel{outline:3px solid var(--gold)}
+.thumb{width:48px;height:66px;image-rendering:pixelated;background:#fff;border-radius:4px;border:1px solid var(--line)}
 .fixc{border-bottom:1px dashed var(--gold);cursor:pointer;padding:1px 2px}
 .fixc:active{background:#ffffff22}
 .sugg{display:flex;gap:8px;margin-bottom:10px}
@@ -154,6 +158,17 @@ body.auto main>section:not(#pAuto){display:none}
       <label class="f">Seuil reconnaissance (0,80–0,95)<input type="number" id="aThr" step="0.01" min="0.5" max="0.99"></label>
       <label class="f">Format des nombres<select id="aNum"><option value="en">1,960 (anglais)</option><option value="fr">1 960 / 1,5 (français)</option></select></label>
     </div>
+  </details>
+  <details id="aLibD" style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">Cartes apprises (mémoire)</summary>
+    <p class="muted">Ce que le site a appris à reconnaître. Clique une carte pour voir ses exemples, en supprimer, les changer de carte, ou les copier vers l'autre groupe (main ⇄ tableau).</p>
+    <div class="row" style="gap:14px;flex-wrap:wrap">
+      <label class="muted"><input type="checkbox" id="aShare"> Une carte apprise sur la main sert aussi pour le tableau (et inversement)</label>
+      <label class="muted"><input type="checkbox" id="aAutoAsk"> Me demander automatiquement les cartes inconnues</label>
+    </div>
+    <div class="chips" id="aLibG" style="margin:8px 0"></div>
+    <div class="pick lib" id="aLibGrid"></div>
+    <div id="aLibDetail" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:8px"><button class="btn sm" id="aLibCopy">Compléter l'autre groupe avec ces cartes</button><span class="muted" id="aLibInfo2"></span></div>
   </details>
 </section>
 
@@ -1132,7 +1147,7 @@ render();
   ];
   const ZCOL = { h: '#e8c35a', b: '#4fa3e0', pot: '#3fbf7f', call: '#e05555', me: '#c78be8', o: '#e89a3c' };
   const A = {
-    zones: {}, lib: [], cfg: { bb: 20, style: 0.5, foldMode: 'cards', v: 2, interval: 700, thr: 0.85, num: 'en', pos: 'MP', nOppOverride: null },
+    zones: {}, lib: [], cfg: { share: true, autoAsk: true, bb: 20, style: 0.5, foldMode: 'cards', v: 2, interval: 700, thr: 0.85, num: 'en', pos: 'MP', nOppOverride: null },
     src: null, video: null, img: null, timer: null, sel: 'h1', drag: null,
     hist: {}, unk: [], read: {}, ocrWorker: null, ocrBusy: false, ocrSig: {}, learning: false, skip: {}, advKey: '', advTok: 0,
   };
@@ -1284,8 +1299,10 @@ render();
   function match(f, grp) {
     let best = null, bs = -2; const per = {};
     for (const e of A.lib) {
-      if (e.g !== grp || !e.f || e.f.r === undefined) continue;
-      const v = sim(f, e.f);
+      if (!e.f || e.f.r === undefined) continue;
+      let pen = 0;
+      if (e.g !== grp) { if (A.cfg.share === false) continue; pen = 0.03; } // other group: slightly stricter
+      const v = sim(f, e.f) - pen;
       if (per[e.c] === undefined || v > per[e.c]) per[e.c] = v;
     }
     let second = -2;
@@ -1417,7 +1434,7 @@ render();
       if (m && m.s >= A.cfg.thr && m.s - m.second >= 0.03) { out.push({ c: m.c, s: m.s, f, grp }); return; }
       out.push({ c: null, f, grp, s: m ? m.s : null });
       A.unk.push({ z, f, grp });
-      if (stable && !A.learning) askLearn(z, f, grp);
+      if (stable && !A.learning && A.cfg.autoAsk !== false) askLearn(z, f, grp);
     });
     return out;
   }
@@ -1638,13 +1655,13 @@ render();
       save(); renderLive();
     });
     $('aLive').querySelectorAll('[data-p]').forEach(b => b.onclick = () => { A.posLock = true; A.cfg.pos = b.dataset.p; save(); A.advKey = ''; renderLive(); });
-    if (!heroOk) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">${c.hero.length < 2 ? 'Zones « Ma carte 1/2 » à calibrer.' : 'En attente de tes cartes…'}</div></div>`; A.advKey = ''; return; }
-    if (!boardOk) {
+    const unkMsg = what => {
       const u = A.unk && A.unk.length;
-      $('aAdv').innerHTML = `<div class="adv"><div class="muted">${u ? `${u} carte${u > 1 ? 's' : ''} du tableau non reconnue${u > 1 ? 's' : ''} (« ?? » ci-dessus). Identifie-la pour avoir le conseil.` : 'Lecture du tableau en cours…'}</div>${u ? '<button class="btn gold" id="aIdent" style="margin-top:8px">Identifier la carte</button>' : ''}</div>`;
+      $('aAdv').innerHTML = `<div class="adv"><div class="muted">${u ? `${u} carte${u > 1 ? 's' : ''} non reconnue${u > 1 ? 's' : ''} (« ?? » ci-dessus). Identifie-la pour avoir le conseil.` : what}</div>${u ? '<button class="btn gold" id="aIdent" style="margin-top:8px">Identifier la carte</button>' : ''}</div>`;
       const ib = $('aIdent'); if (ib) ib.onclick = () => { if (!A.learning && A.unk.length) askLearn(A.unk[0].z, A.unk[0].f, A.unk[0].grp); };
-      return;
-    }
+    };
+    if (!heroOk) { if (c.hero.length < 2) $('aAdv').innerHTML = `<div class="adv"><div class="muted">Zones « Ma carte 1/2 » à calibrer.</div></div>`; else unkMsg('En attente de tes cartes…'); A.advKey = ''; return; }
+    if (!boardOk) { unkMsg('Lecture du tableau en cours…'); return; }
     if (callBlock) { $('aAdv').innerHTML = `<div class="adv"><div class="muted">${callBlock}</div></div>`; A.advKey = ''; A.advTok++; return; }
     const ctx = { hero: c.hero.map(x => x.c), board: c.board.map(x => x.c), nOpp: Math.max(1, nOpp || 1), pot: pot || 0, call, me };
     const key = JSON.stringify([ctx, A.cfg.style, A.cfg.pos, A.cfg.bb]);
@@ -1775,6 +1792,49 @@ render();
   function libInfo() {
     const nb = new Set(A.lib.filter(e => e.g === 'b').map(e => e.c)).size, nh = new Set(A.lib.filter(e => e.g === 'h').map(e => e.c)).size;
     $('aLibInfo').textContent = `Cartes apprises : tableau ${nb}/52, main ${nh}/52`;
+    libUI();
+  }
+  function thumb(f) {
+    const c = document.createElement('canvas'); c.width = 16; c.height = 22; c.className = 'thumb';
+    const x = c.getContext('2d'), im = x.createImageData(16, 22), col = f.red ? [200, 30, 40] : [20, 20, 20];
+    for (let i = 0; i < 352; i++) { const v = Math.min(1, f.w[i] || 0); for (let k = 0; k < 3; k++) im.data[4 * i + k] = Math.round(255 - (255 - col[k]) * v); im.data[4 * i + 3] = 255; }
+    x.putImageData(im, 0, 0); return c;
+  }
+  function libUI() {
+    if (!$('aLibD').open) return;
+    const g = A.libG || 'h', og = g === 'h' ? 'b' : 'h', gn = k => k === 'h' ? 'Main' : 'Tableau';
+    $('aShare').checked = A.cfg.share !== false; $('aAutoAsk').checked = A.cfg.autoAsk !== false;
+    $('aLibG').innerHTML = ['h', 'b'].map(k => `<span class="chip ${g === k ? 'on' : ''}" data-g="${k}">${gn(k)} (${new Set(A.lib.filter(e => e.g === k).map(e => e.c)).size}/52)</span>`).join('');
+    $('aLibG').querySelectorAll('[data-g]').forEach(el => el.onclick = () => { A.libG = el.dataset.g; A.libSel = null; libUI(); });
+    const grid = $('aLibGrid'); grid.innerHTML = '';
+    const cnt = {}; A.lib.forEach(e => { if (e.g === g) cnt[e.c] = (cnt[e.c] || 0) + 1; });
+    for (let s = 0; s < 4; s++) for (let r = 12; r >= 0; r--) {
+      const c = (r << 2) | s, el = cardEl(c, () => { A.libSel = c; libUI(); });
+      if (!cnt[c]) el.style.opacity = '.3'; else el.insertAdjacentHTML('beforeend', `<span class="n">${cnt[c]}</span>`);
+      if (A.libSel === c) el.classList.add('sel');
+      grid.appendChild(el);
+    }
+    const dt = $('aLibDetail'); dt.innerHTML = '';
+    if (A.libSel != null) {
+      const ents = A.lib.filter(e => e.g === g && e.c === A.libSel);
+      const h = document.createElement('div'); h.className = 'muted'; h.innerHTML = `<b>${frCard(A.libSel)}</b> — ${gn(g)} : ${ents.length} exemple${ents.length > 1 ? 's' : ''}`; dt.appendChild(h);
+      const row = document.createElement('div'); row.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;margin-top:6px'; dt.appendChild(row);
+      ents.forEach(e => {
+        const w = document.createElement('div'); w.style.cssText = 'display:flex;flex-direction:column;gap:4px;align-items:center'; w.appendChild(thumb(e.f));
+        const mk = (t, fn) => { const b = document.createElement('button'); b.className = 'btn sm'; b.textContent = t; b.onclick = fn; w.appendChild(b); };
+        mk('Autre carte…', () => {
+          if (A.learning) return; A.learning = true;
+          const cv = $('pickCrop'); cv.width = 16 * 4; cv.height = 22 * 4; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(thumb(e.f), 0, 0, cv.width, cv.height);
+          const cb = c => { e.c = c; save(); A.learning = false; A.advKey = ''; libInfo(); };
+          cb.cancel = () => { A.learning = false; };
+          openPick('learn', 0, cb, { sugg: [], red: e.f.red, used: [], title: `Cet exemple (lu « ${frCard(A.libSel)} ») est en fait…` });
+        });
+        mk('Copier ⇄', () => { A.lib.push({ g: og, c: e.c, f: e.f }); save(); libInfo(); });
+        mk('Supprimer', () => { A.lib = A.lib.filter(x => x !== e); save(); A.advKey = ''; libInfo(); });
+        row.appendChild(w);
+      });
+    }
+    $('aLibCopy').textContent = `Compléter ${gn(og)} avec les cartes de ${gn(g)}`;
   }
 
   /* ---------- wiring ---------- */
@@ -1789,6 +1849,14 @@ render();
   $('aClearLib').onclick = () => { if (Date.now() - clr > 3000) { clr = Date.now(); $('aClearLib').textContent = 'Confirmer ?'; setTimeout(() => $('aClearLib').textContent = 'Oublier les cartes apprises', 3000); return; } A.lib = []; save(); libInfo(); $('aClearLib').textContent = 'Oublier les cartes apprises'; };
   const bindCfg = (id, k, num) => { const el = $(id); el.value = A.cfg[k]; el.onchange = () => { A.cfg[k] = num ? parseFloat(el.value) : el.value; save(); A.advKey = ''; tick(true); }; };
   bindCfg('aBB', 'bb', true); bindCfg('aStyle', 'style', true); bindCfg('aFoldMode', 'foldMode'); bindCfg('aInt', 'interval', true); bindCfg('aThr', 'thr', true); bindCfg('aNum', 'num');
+  $('aLibD').addEventListener('toggle', libUI);
+  $('aShare').onchange = e => { A.cfg.share = e.target.checked; save(); A.advKey = ''; };
+  $('aAutoAsk').onchange = e => { A.cfg.autoAsk = e.target.checked; save(); };
+  $('aLibCopy').onclick = () => {
+    const g = A.libG || 'h', og = g === 'h' ? 'b' : 'h', have = new Set(A.lib.filter(e => e.g === og).map(e => e.c));
+    let n = 0; A.lib.filter(e => e.g === g && !have.has(e.c)).forEach(e => { A.lib.push({ g: og, c: e.c, f: e.f }); n++; });
+    save(); libInfo(); $('aLibInfo2').textContent = n ? `${n} exemple(s) copié(s).` : 'Rien à copier.';
+  };
   zoneBtns(); libInfo();
 })();
 </script>
