@@ -95,6 +95,8 @@ table.k td:last-child{text-align:right;font-weight:700}
 .pick .pc{width:auto;height:44px;font-size:13px}
 .pick .pc .r,.pick .pc .s{font-size:14px}
 .pick .pc.used{opacity:.15;pointer-events:none}
+.fixc{border-bottom:1px dashed var(--gold);cursor:pointer;padding:1px 2px}
+.fixc:active{background:#ffffff22}
 .sugg{display:flex;gap:8px;margin-bottom:10px}
 .sugg .pc{width:64px;height:88px;font-size:20px;cursor:pointer}
 .sugg .pc .r,.sugg .pc .s{font-size:24px}
@@ -998,7 +1000,7 @@ function openPick(target, idx, cb, extra) {
     const ex = extra || {}, used = new Set(ex.used || []);
     const choose = c => { const f = pickT.cb; pickT.cb = null; closePick(); f(c); };
     const redS = ex.red ? [1, 2] : [0, 3];
-    $('pickTitle').textContent = 'Quelle est cette carte ? (apprise une seule fois)';
+    $('pickTitle').textContent = ex.title || 'Quelle est cette carte ? (apprise une seule fois)';
     $('bPickClear').classList.add('hidden');
     const sg = (ex.sugg || []).filter(c => !used.has(c)).slice(0, 4);
     const sb = $('pickSugg'); sb.innerHTML = '';
@@ -1436,15 +1438,22 @@ render();
     if (rs.length && rk[rs[0]] > 0.7) for (const s of (f.red ? [1, 2] : [0, 3])) { const c = (rs[0] << 2) | s; if (!out.includes(c) && !used.has(c)) out.push(c); }
     return { sugg: out.slice(0, 4), red: f.red, used: [...used] };
   }
-  function askLearn(z, f, grp) {
+  function askLearn(z, f, grp, wrong) {
     A.learning = true;
     const r = px(z), cv = $('pickCrop');
     const sc = Math.min(4, 110 / r.h);
     cv.width = r.w * sc; cv.height = r.h * sc;
     const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(srcC, r.x, r.y, r.w, r.h, 0, 0, cv.width, cv.height);
-    const cb = c => { A.lib.push({ g: grp, c, f }); save(); A.learning = false; libInfo(); tick(true); };
+    const fix = wrong !== undefined && wrong !== null;
+    const cb = c => {
+      // correction: forget the look-alike samples that were wrongly matched to the old card
+      if (fix && wrong !== c) A.lib = A.lib.filter(e => !(e.g === grp && e.c === wrong && e.f && e.f.r !== undefined && sim(f, e.f) > 0.8));
+      A.lib.push({ g: grp, c, f }); save(); A.learning = false; libInfo(); A.advKey = ''; tick(true);
+    };
     cb.cancel = () => { A.learning = false; };
-    openPick('learn', 0, cb, suggest(f, grp));
+    const ex = suggest(f, grp);
+    if (fix) { ex.used.push(wrong); ex.sugg = ex.sugg.filter(c => c !== wrong); ex.title = `Corriger : cette carte lue « ${frCard(wrong)} » est en fait… ?`; }
+    openPick('learn', 0, cb, ex);
   }
   function oppActive() {
     const ks = ZONES.map(z => z[0]).filter(k => k[0] === 'o' && A.zones[k]);
@@ -1595,11 +1604,11 @@ render();
     if (!callBlock && A.callOv == null && pre && call === 0 && A.cfg.pos !== 'BB' && !A.posAuto) {
       call = A.cfg.pos === 'SB' ? bbv / 2 : bbv; callNote = `lu 0 mais tu n'es pas en grosse blinde : je suppose ${fmt(call)} (corrige si besoin)`;
     }
-    const cardTxt = a => a.map(x => x ? (x.c !== null ? frCard(x.c) : '??') : '—').join(' · ') || '—';
+    const cardTxt = (a, g) => a.map((x, i) => x ? `<span class="fixc" data-fg="${g}" data-fi="${i}" title="Clique pour corriger cette carte">${x.c !== null ? frCard(x.c) : '??'}</span>` : '—').join(' · ') || '—';
     const typing = document.activeElement && document.activeElement.id === 'aCallIn';
-    if (!typing) $('aLive').innerHTML = `<table class="k">
-      <tr><td>Mes cartes</td><td>${cardTxt(c.hero)}</td></tr>
-      <tr><td>Tableau (${['Préflop', '', '', 'Flop', 'Turn', 'River'][c.board.length] || '?'})</td><td>${cardTxt(c.board)}</td></tr>
+    const liveHtml = `<table class="k">
+      <tr><td>Mes cartes <div class="muted">(clique une carte pour la corriger)</div></td><td>${cardTxt(c.hero, 'h')}</td></tr>
+      <tr><td>Tableau (${['Préflop', '', '', 'Flop', 'Turn', 'River'][c.board.length] || '?'})</td><td>${cardTxt(c.board, 'b')}</td></tr>
       <tr><td>Adversaires en jeu ${c.opp && c.opp.keys ? `<div class="muted">${c.opp.keys.map((k, i) => (c.opp.act[i] ? '🟢' : '⚪') + k.slice(1)).join(' ')}</div>` : ''}</td><td>
         <button class="btn sm" data-o="-1">−</button> ${nOpp == null ? '?' : nOpp}${A.cfg.nOppOverride != null ? ' (forcé)' : ''} <button class="btn sm" data-o="1">+</button>
         ${A.cfg.nOppOverride != null ? '<button class="btn sm" data-o="0">auto</button>' : ''}</td></tr>
@@ -1611,11 +1620,18 @@ render();
       <tr><td>Ma position</td><td><span class="chips" style="justify-content:flex-end">${Object.keys(OPEN).map(p => `<span class="chip ${A.cfg.pos === p ? 'on' : ''}" data-p="${p}" title="${POSFR[p][1]}" style="padding:4px 8px">${POSFR[p][0]} <small>(${p})</small></span>`).join('')}</span></td></tr>
     </table>
     <div class="muted" style="margin:4px 0">${A.posInfo ? A.posInfo + '<br>' : (A.dtpl ? '' : 'Position auto : trace la zone « Bouton D » sur le D visible (calibration) pour qu\'elle soit détectée toute seule.<br>')}<b>${posName(A.cfg.pos)}</b> — ${(POSFR[A.cfg.pos] || [])[1] || ''}</div>${POS_HELP_HTML}${A.ocrErr ? `<div class="muted">${A.ocrErr}</div>` : ''}${(A.zones.pot && !A.ocrWorker) ? '<div class="muted"><span class="spin"></span> Chargement de l\'OCR…</div>' : ''}`;
+    if (!typing && liveHtml !== A.liveHtml) { A.liveHtml = liveHtml; $('aLive').innerHTML = liveHtml; }
     const ci = $('aCallIn');
     if (ci && !typing) {
       ci.onchange = () => { const v = parseFloat(ci.value.replace(',', '.')); A.callOv = isFinite(v) && ci.value !== '' ? Math.max(0, v) : null; A.advKey = ''; ci.blur(); renderLive(); };
       const ca = $('aCallAuto'); if (ca) ca.onclick = () => { A.callOv = null; A.advKey = ''; renderLive(); };
     }
+    $('aLive').querySelectorAll('[data-fg]').forEach(el => el.onclick = () => {
+      if (A.learning) return;
+      const g = el.dataset.fg, i = +el.dataset.fi;
+      const cc = A.cur || c, x = (g === 'h' ? cc.hero : cc.board)[i], z = (g === 'h' ? [A.zones.h1, A.zones.h2].filter(Boolean) : boardZones())[i];
+      if (x && x.f && z) askLearn(z, x.f, g, x.c);
+    });
     $('aLive').querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
       const d = +b.dataset.o;
       if (d === 0) A.cfg.nOppOverride = null; else A.cfg.nOppOverride = Math.max(1, Math.min(9, (A.cfg.nOppOverride != null ? A.cfg.nOppOverride : (nOppAuto || 1)) + d));
