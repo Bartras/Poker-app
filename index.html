@@ -99,6 +99,12 @@ table.k td:last-child{text-align:right;font-weight:700}
 .lib .pc .n{position:absolute;right:1px;bottom:0;font-size:10px;background:#1d5a3c;color:#fff;border-radius:6px;padding:0 3px}
 .lib .pc.sel{outline:3px solid var(--gold)}
 .thumb{width:48px;height:66px;image-rendering:pixelated;background:#fff;border-radius:4px;border:1px solid var(--line)}
+.lnrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.lnb{min-width:46px;height:46px;font-size:20px;font-weight:800;border-radius:9px;background:#fbfbf7;color:#111;border:3px solid transparent;cursor:pointer}
+.lnb.r{color:var(--cardred)}
+.lnb.on{border-color:var(--gold);background:#ffe9a3}
+.lnb.sug{outline:2px dashed var(--gold);outline-offset:1px}
+.lnb.cur{box-shadow:0 0 0 2px #4fa3e0 inset}
 .fixc{border-bottom:1px dashed var(--gold);cursor:pointer;padding:1px 2px}
 .fixc:active{background:#ffffff22}
 .sugg{display:flex;gap:8px;margin-bottom:10px}
@@ -138,7 +144,7 @@ body.auto main>section:not(#pAuto){display:none}
   <div id="aLive"></div>
   <div id="aAdv"></div>
   <details id="aCal" style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">Calibration des zones</summary>
-    <p class="muted">Choisis une zone puis trace un rectangle sur l'image. Pour le tableau, trace seulement la 1<sup>re</sup> et la 5<sup>e</sup> carte : les autres sont interpolées. Cartes : englobe le coin rang + couleur (ou toute la carte) en laissant une petite marge autour des symboles. Adversaires : entoure les deux cartes (dos rouge) de chaque adversaire, sans la tienne — un joueur couché n'a plus ses cartes, donc plus de rouge dans sa zone. Chaque nouvelle carte t'est demandée une seule fois, ensuite elle est reconnue.</p>
+    <p class="muted">Choisis une zone puis trace un rectangle sur l'image. Pour le tableau, trace seulement la 1<sup>re</sup> et la 5<sup>e</sup> carte : les autres sont interpolées. Cartes : englobe le coin rang + couleur (ou toute la carte) en laissant une petite marge autour des symboles. Adversaires : entoure les deux cartes (dos rouge) de chaque adversaire, sans la tienne — un joueur couché n'a plus ses cartes, donc plus de rouge dans sa zone. Pour une carte inconnue, le site ne te demande que ce qu'il ne sait pas encore (la valeur ou la couleur), en un clic.</p>
     <div class="chips" id="aZoneBtns"></div>
     <div style="position:relative;margin-top:8px;touch-action:none"><canvas id="aCanvas" style="width:100%;border-radius:8px;background:#000;display:block"></canvas></div>
     <div class="row" style="margin-top:8px">
@@ -160,11 +166,11 @@ body.auto main>section:not(#pAuto){display:none}
     </div>
   </details>
   <details id="aLibD" style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">Cartes apprises (mémoire)</summary>
-    <p class="muted">Ce que le site a appris à reconnaître. Clique une carte pour voir ses exemples, en supprimer, les changer de carte, ou les copier vers l'autre groupe (main ⇄ tableau).</p>
+    <p class="muted">Le site apprend séparément les <b>valeurs</b> (A, R, D, V, 10…) et les <b>couleurs</b> (♠ ♥ ♦ ♣) : chaque carte confirmée enseigne les deux, donc il ne redemande presque plus rien au bout de quelques mains. Clique une valeur ou une couleur pour voir ses exemples, en changer l'étiquette ou les supprimer. « Anciennes cartes » = l'ancien système, gardé en secours.</p>
     <div class="row" style="gap:14px;flex-wrap:wrap">
-      <label class="muted"><input type="checkbox" id="aShare"> Une carte apprise sur la main sert aussi pour le tableau (et inversement)</label>
       <label class="muted"><input type="checkbox" id="aAutoAsk"> Me demander automatiquement les cartes inconnues</label>
     </div>
+    <div class="chips" id="aLibMode" style="margin:8px 0"></div>
     <div class="chips" id="aLibG" style="margin:8px 0"></div>
     <div class="pick lib" id="aLibGrid"></div>
     <div id="aLibDetail" style="margin-top:8px"></div>
@@ -244,6 +250,14 @@ body.auto main>section:not(#pAuto){display:none}
 </main>
 
 <div id="toast" style="position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#5a1e1e;border:1px solid var(--red);padding:10px 14px;border-radius:10px;z-index:30;display:none;max-width:90%"></div>
+<div class="modal" id="mLearn"><div class="sheet">
+  <div class="row" style="margin-bottom:8px"><b class="grow" id="lnTitle">Quelle est cette carte ?</b><button class="btn sm" id="lnClose">✕</button></div>
+  <canvas id="lnCrop" style="display:block;margin:0 auto 8px;max-height:110px;border-radius:6px;border:2px solid var(--gold)"></canvas>
+  <div id="lnRankBox"><div class="muted">Valeur</div><div class="lnrow" id="lnRankRow"></div></div>
+  <div id="lnSuitBox" style="margin-top:8px"><div class="muted">Couleur <button class="btn sm" id="lnAllSuits" style="margin-left:6px">voir les 4</button></div><div class="lnrow" id="lnSuitRow"></div></div>
+  <div class="muted" id="lnMsg" style="margin-top:6px"></div>
+  <button class="btn gold" id="lnOk" style="width:100%;margin-top:8px">Valider</button>
+</div></div>
 <div class="modal" id="mPick"><div class="sheet">
   <div class="row" style="margin-bottom:8px"><b class="grow" id="pickTitle">Choisis une carte</b>
     <button class="btn sm red" id="bPickClear">Retirer</button><button class="btn sm" id="bPickClose">✕</button></div>
@@ -1158,13 +1172,13 @@ render();
   const A = {
     zones: {}, lib: [], cfg: { share: true, autoAsk: true, bb: 20, style: 0.5, foldMode: 'cards', v: 2, interval: 700, thr: 0.85, num: 'en', pos: 'MP', nOppOverride: null },
     src: null, video: null, img: null, timer: null, sel: 'h1', drag: null,
-    hist: {}, unk: [], read: {}, ocrWorker: null, ocrBusy: false, ocrSig: {}, learning: false, skip: {}, advKey: '', advTok: 0,
+    hist: {}, vote: {}, rs: [], unk: [], read: {}, ocrWorker: null, ocrBusy: false, ocrSig: {}, learning: false, skip: {}, advKey: '', advTok: 0,
   };
   window.__AUTO__ = A;
-  A._dbg = () => ({ feature, sim, match, px, boardZones, srcC, renderLive, captureD, dealerCheck, findD, seatAnchors });
-  function save() { try { localStorage.setItem(KEY, JSON.stringify({ zones: A.zones, lib: A.lib, cfg: A.cfg, dtpl: A.dtpl })); } catch (e) { } }
+  A._dbg = () => ({ feature, sim, match, px, boardZones, srcC, renderLive, captureD, dealerCheck, findD, seatAnchors, extract, classify, readCards, addSample });
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ zones: A.zones, lib: A.lib, rs: A.rs, cfg: A.cfg, dtpl: A.dtpl })); } catch (e) { } }
   function load() {
-    try { const t = JSON.parse(localStorage.getItem(KEY) || 'null'); if (t) { A.zones = t.zones || {}; A.lib = t.lib || []; A.dtpl = t.dtpl || null; Object.assign(A.cfg, t.cfg || {}); if (!t.cfg || !t.cfg.v) { A.cfg.foldMode = 'cards'; A.cfg.v = 2; } } } catch (e) { }
+    try { const t = JSON.parse(localStorage.getItem(KEY) || 'null'); if (t) { A.zones = t.zones || {}; A.lib = t.lib || []; A.rs = Array.isArray(t.rs) ? t.rs : []; A.dtpl = t.dtpl || null; Object.assign(A.cfg, t.cfg || {}); if (!t.cfg || !t.cfg.v) { A.cfg.foldMode = 'cards'; A.cfg.v = 2; } } } catch (e) { }
   }
 
   const srcC = document.createElement('canvas'), srcX = srcC.getContext('2d', { willReadFrequently: true });
@@ -1429,57 +1443,240 @@ render();
   }
 
   /* ---------- reading ---------- */
+  /* ---------- reconnaissance par VALEUR + COULEUR (13 + 4 classes au lieu de 52 cartes) ---------- */
+  const RGW = 12, RGH = 16, SGW = 12, SGH = 12;
+  // extracts rank glyph (top row of ink) and suit glyph (second row) from a corner zone
+  function extract(z) {
+    const r = px(z), d = srcX.getImageData(r.x, r.y, r.w, r.h).data, n = r.w * r.h, w = r.w, h = r.h;
+    const L = new Float32Array(n), redp = new Uint8Array(n), teal = new Uint8Array(n), hist = new Uint32Array(256);
+    for (let i = 0; i < n; i++) {
+      const R = d[4 * i], G = d[4 * i + 1], B = d[4 * i + 2];
+      L[i] = 0.3 * R + 0.59 * G + 0.11 * B; hist[Math.min(255, L[i] | 0)]++;
+      redp[i] = R - Math.max(G, B) > 40 ? 1 : 0;
+      teal[i] = (G > R + 30 || B > R + 30) ? 1 : 0;
+    }
+    let acc = 0, bg = 255; for (let t = 255; t >= 0; t--) { acc += hist[t]; if (acc >= n * 0.5) { bg = t; break; } }
+    const ink = new Uint8Array(n);
+    for (let i = 0; i < n; i++) if (bg - L[i] > 55 && (!teal[i] || redp[i])) ink[i] = 1;
+    const lab = new Int32Array(n), comps = [];
+    for (let s0 = 0; s0 < n; s0++) {
+      if (!ink[s0] || lab[s0]) continue;
+      const id = comps.length + 1, st = [s0], pxs = []; lab[s0] = id;
+      let x0 = w, x1 = 0, y0 = h, y1 = 0, edge = false, red = 0;
+      while (st.length) {
+        const i = st.pop(); pxs.push(i); red += redp[i];
+        const x = i % w, y = (i / w) | 0;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edge = true;
+        if (x > 0 && ink[i - 1] && !lab[i - 1]) { lab[i - 1] = id; st.push(i - 1); }
+        if (x < w - 1 && ink[i + 1] && !lab[i + 1]) { lab[i + 1] = id; st.push(i + 1); }
+        if (y > 0 && ink[i - w] && !lab[i - w]) { lab[i - w] = id; st.push(i - w); }
+        if (y < h - 1 && ink[i + w] && !lab[i + w]) { lab[i + w] = id; st.push(i + w); }
+      }
+      comps.push({ pxs, x0, x1, y0, y1, edge, red });
+    }
+    const keep = comps.filter(c => !c.edge && c.pxs.length >= Math.max(5, n * 0.0012)).sort((a, b) => a.y0 - b.y0);
+    if (!keep.length) return null;
+    const rows = [];
+    for (const c of keep) {
+      const rw = rows.find(q => Math.min(q.y1, c.y1) - Math.max(q.y0, c.y0) + 1 >= 0.4 * Math.min(q.y1 - q.y0 + 1, c.y1 - c.y0 + 1));
+      if (rw) { rw.cs.push(c); rw.x0 = Math.min(rw.x0, c.x0); rw.x1 = Math.max(rw.x1, c.x1); rw.y0 = Math.min(rw.y0, c.y0); rw.y1 = Math.max(rw.y1, c.y1); }
+      else rows.push({ cs: [c], x0: c.x0, x1: c.x1, y0: c.y0, y1: c.y1 });
+    }
+    const grid = (row, GW, GH) => {
+      const m = new Uint8Array(n); row.cs.forEach(c => c.pxs.forEach(i => m[i] = 1));
+      const bw = row.x1 - row.x0 + 1, bh = row.y1 - row.y0 + 1, cw = bw / GW, ch = bh / GH, out = new Array(GW * GH);
+      for (let j = 0; j < GH; j++) for (let k = 0; k < GW; k++) {
+        const xa = row.x0 + k * cw, xb = xa + cw, ya = row.y0 + j * ch, yb = ya + ch; let sm = 0, mm = 0;
+        for (let y = Math.floor(ya); y < Math.ceil(yb); y++) { const wy = Math.min(y + 1, yb) - Math.max(y, ya); if (wy <= 0 || y >= h) continue;
+          for (let x = Math.floor(xa); x < Math.ceil(xb); x++) { const wx = Math.min(x + 1, xb) - Math.max(x, xa); if (wx <= 0 || x >= w) continue; sm += m[y * w + x] * wx * wy; mm += wx * wy; } }
+        out[j * GW + k] = mm ? Math.round(sm / mm * 100) / 100 : 0;
+      }
+      return { g: out, ar: Math.round(bw / bh * 100) / 100 };
+    };
+    const ROTS = [-12, -8, -4, 4, 8, 12];
+    const rotGrid = (row, GW, GH, deg) => { // same glyph, turned by deg (compensates tilted cards)
+      const m = new Uint8Array(n); row.cs.forEach(c => c.pxs.forEach(i => m[i] = 1));
+      const cx = (row.x0 + row.x1 + 1) / 2, cy = (row.y0 + row.y1 + 1) / 2, a = deg * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+      let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9;
+      row.cs.forEach(c => c.pxs.forEach(i => { const dx = (i % w) + .5 - cx, dy = ((i / w) | 0) + .5 - cy, X = dx * co - dy * si, Y = dx * si + dy * co; if (X < mnx) mnx = X; if (X > mxx) mxx = X; if (Y < mny) mny = Y; if (Y > mxy) mxy = Y; }));
+      mnx -= .5; mxx += .5; mny -= .5; mxy += .5;
+      const bw = mxx - mnx, bh = mxy - mny, cw = bw / GW, ch = bh / GH, out = new Array(GW * GH);
+      for (let j = 0; j < GH; j++) for (let k = 0; k < GW; k++) {
+        let sm = 0;
+        for (let u = 0; u < 3; u++) for (let v = 0; v < 3; v++) {
+          const X = mnx + (k + (u + .5) / 3) * cw, Y = mny + (j + (v + .5) / 3) * ch, sx = Math.floor(cx + X * co + Y * si), sy = Math.floor(cy - X * si + Y * co);
+          if (sx >= 0 && sy >= 0 && sx < w && sy < h) sm += m[sy * w + sx];
+        }
+        out[j * GW + k] = Math.round(sm / 9 * 100) / 100;
+      }
+      return { g: out, ar: Math.round(bw / bh * 100) / 100 };
+    };
+    const bb = cs => ({ cs, x0: Math.min(...cs.map(c => c.x0)), x1: Math.max(...cs.map(c => c.x1)), y0: Math.min(...cs.map(c => c.y0)), y1: Math.max(...cs.map(c => c.y1)) });
+    // rank = the tall glyph(s) of the first row (drops small specks / artwork pieces sharing the row)
+    const th = Math.max(...rows[0].cs.map(c => c.y1 - c.y0 + 1)), tall = rows[0].cs.find(c => c.y1 - c.y0 + 1 === th);
+    const rk = bb(rows[0].cs.filter(c => c.y1 - c.y0 + 1 >= 0.6 * th && Math.max(c.x0 - tall.x1, tall.x0 - c.x1) <= th)), rh = rk.y1 - rk.y0 + 1;
+    if (rh < 6 || rk.x1 - rk.x0 + 1 > 2.4 * rh) return null;
+    let redN = 0, allN = 0; rk.cs.forEach(c => { redN += c.red; allN += c.pxs.length; });
+    // suit = one compact blob just below the rank (the biggest blob of the next row that looks like a suit symbol)
+    let suit = null, sr = null;
+    for (let i = 1; i < rows.length && !suit; i++) {
+      const big = rows[i].cs.reduce((a, c) => c.pxs.length > a.pxs.length ? c : a, rows[i].cs[0]);
+      const sh = big.y1 - big.y0 + 1, sw = big.x1 - big.x0 + 1, gap = big.y0 - rk.y1, fill = big.pxs.length / (sw * sh), ar = sw / sh;
+      if (gap > rh) break;
+      if (sh <= 1.35 * rh && sh >= 0.35 * rh && sw <= 1.9 * rh && sw >= 0.3 * rh && fill >= 0.4 && ar >= 0.6 && ar <= 1.5) { sr = bb([big]); suit = grid(sr, SGW, SGH); redN += big.red; allN += big.pxs.length; }
+    }
+    const rank = grid(rk, RGW, RGH);
+    rank.rots = ROTS.map(d => rotGrid(rk, RGW, RGH, d));
+    if (suit) suit.rots = ROTS.map(d => rotGrid(sr, SGW, SGH, d));
+    return { rank, suit, red: allN && redN / allN > 0.5 ? 1 : 0, geo: sr && suit ? { rx: (rk.x0 + rk.x1) / 2, ry: (rk.y0 + rk.y1) / 2, sx: (sr.x0 + sr.x1) / 2, sy: (sr.y0 + sr.y1) / 2 } : null };
+  }
+  const one = (f, e, k) => { let s = ncc(f.g, e.g); if (s === null) s = 0; return s - k * Math.min(.35, Math.abs(Math.log(f.ar / e.ar))); };
+  // best over small rotations of the query (tilted hero cards) ; rotated variants cost a small handicap
+  const rankScore = (f, e) => { let b = one(f, e, .6); if (f.rots) for (const r of f.rots) b = Math.max(b, one(r, e, .6) - 0.02); return b; };
+  const suitScore = (f, e) => { let b = one(f, e, .3); if (f.rots) for (const r of f.rots) b = Math.max(b, one(r, e, .3) - 0.02); return b; };
+  function classify(kind, f, grp, allowed) {
+    const per = {};
+    for (const e of A.rs) {
+      if (e.k !== kind || (allowed && !allowed.includes(e.v))) continue;
+      const v = (kind === 'r' ? rankScore(f, e.f) : suitScore(f, e.f)) - (e.g === grp ? 0 : kind === 'r' ? 0.03 : 0.08); // other slot/group: handicap (tilt, size)
+      if (per[e.v] === undefined || v > per[e.v]) per[e.v] = v;
+    }
+    const ks = Object.keys(per).map(Number).sort((a, b) => per[b] - per[a]);
+    if (!ks.length) return { v: null, s: null, cand: [] };
+    const s1 = per[ks[0]], s2 = ks.length > 1 ? per[ks[1]] : -1;
+    const T = kind === 'r' ? .74 : .84, M = kind === 'r' ? .07 : .07;
+    const ok = s1 >= (ks.length === 1 ? T + .06 : T) && s1 - s2 >= M;
+    return { v: ok ? ks[0] : null, s: s1, s2, cand: ks.slice(0, 3) };
+  }
+  function addSample(k, v, g, f) {
+    if (A.rs.some(e => e.k === k && e.v === v && (k === 'r' ? rankScore(f, e.f) : suitScore(f, e.f)) > 0.985)) return false;
+    A.rs.push({ k, v, g, f: { g: f.g, ar: f.ar, red: f.red === undefined ? undefined : f.red } });
+    const same = A.rs.filter(e => e.k === k && e.v === v);
+    if (same.length > 12) A.rs.splice(A.rs.indexOf(same[0]), 1);
+    return true;
+  }
+  function addParts(q, grp, rank, suit) {
+    if (rank != null && q.rank) addSample('r', rank, grp, q.rank);
+    if (suit != null && q.suit) addSample('s', suit, grp, Object.assign({}, q.suit, { red: q.red }));
+  }
+  // user-confirmed answer: drop near-identical samples that carry another label (they would make this glyph ambiguous forever)
+  function learnParts(q, grp, rank, suit) {
+    if (rank != null && q.rank) A.rs = A.rs.filter(e => !(e.k === 'r' && e.v !== rank && rankScore(q.rank, e.f) > 0.9));
+    if (suit != null && q.suit) A.rs = A.rs.filter(e => !(e.k === 's' && e.v !== suit && suitScore(q.suit, e.f) > 0.9));
+    addParts(q, grp, rank, suit);
+  }
+  function nccS(a, b) { const v = ncc(a, b); return v === null ? 1 : v; }
   function readCards(zs, grp, prefix) {
     const out = [];
     zs.forEach((z, i) => {
-      const id = prefix + i;
-      const pres = presence(z);
-      if (pres < 0.35) { out.push(null); A.hist[id] = null; return; }
-      const f = feature(z);
-      if (!f) { out.push(null); A.hist[id] = null; return; }
-      const m = match(f, grp);
-      const prev = A.hist[id]; A.hist[id] = f;
-      const stable = prev && sim(prev, f) > 0.97;
-      if (m && m.s >= A.cfg.thr && m.s - m.second >= 0.03) { out.push({ c: m.c, s: m.s, f, grp }); return; }
-      out.push({ c: null, f, grp, s: m ? m.s : null });
-      A.unk.push({ z, f, grp });
-      if (stable && !A.learning && A.cfg.autoAsk !== false) askLearn(z, f, grp);
+      const id = prefix + i, sg = grp === 'h' ? 'h' + i : 'b', pres = presence(z);
+      if (pres < 0.35) { out.push(null); A.hist[id] = null; A.vote[id] = null; return; }
+      const q = extract(z);
+      if (!q) { out.push(null); A.hist[id] = null; A.vote[id] = null; return; }
+      const prev = A.hist[id]; A.hist[id] = q;
+      const stable = !!(prev && nccS(prev.rank.g, q.rank.g) > 0.97);
+      const rr = classify('r', q.rank, sg), ss = q.suit ? classify('s', q.suit, sg, q.red ? [1, 2] : [0, 3]) : { v: null, s: null, cand: [] };
+      let c = null, conf = 0, legacy = null;
+      if (rr.v !== null && ss.v !== null) { c = (rr.v << 2) | ss.v; conf = Math.min(rr.s, ss.s); }
+      else if (A.lib.length) { // old whole-card library as a fallback (and as a teacher for the new one)
+        const f = feature(z), m = f && match(f, grp);
+        if (m && m.s >= A.cfg.thr && m.s - m.second >= 0.03) { c = m.c; conf = m.s; legacy = m; }
+      }
+      const vt = A.vote[id];
+      if (c !== null && vt && vt.c === c) vt.n++; else A.vote[id] = c !== null ? { c, n: 1 } : null;
+      const nv = A.vote[id] ? A.vote[id].n : 0;
+      if (legacy && legacy.s >= 0.95 && legacy.s - legacy.second >= 0.08 && nv >= 3 && !(q.suit && ((c & 3) === 1 || (c & 3) === 2) !== !!q.red)) { addParts(q, sg, c >> 2, c & 3); save(); }
+      if (c !== null && nv >= 2) { out.push({ c, s: conf, q, grp: sg, z }); return; }
+      if (c !== null) { out.push({ c: null, pending: true, q, grp: sg, z }); return; }
+      const part = { rank: rr.v, suit: ss.v, rc: rr.cand, sc: ss.cand };
+      out.push({ c: null, q, grp: sg, z, part, s: rr.s });
+      A.unk.push({ z, q, grp: sg, part });
+      if (stable && !A.learning && A.cfg.autoAsk !== false) askLearn(A.unk[A.unk.length - 1]);
     });
     return out;
   }
-  // propose the most likely cards for an unknown one: library neighbours + rank guess + colour filter
-  function suggest(f, grp) {
-    const used = new Set();
-    if (A.cur) A.cur.hero.concat(A.cur.board).forEach(x => x && x.c !== null && x.c !== undefined && used.add(x.c));
-    const per = {}, rk = {};
-    for (const e of A.lib) {
-      if (!e.f || e.f.r === undefined) continue;
-      const bonus = e.g === grp ? 0.02 : 0;
-      if (e.f.red === f.red) { const v = sim(f, e.f) + bonus; if (per[e.c] === undefined || v > per[e.c]) per[e.c] = v; }
-      const rv = (ncc(f.r, e.f.r) || 0) + bonus, r = e.c >> 2; if (rk[r] === undefined || rv > rk[r]) rk[r] = rv;
-    }
-    const out = [];
-    Object.keys(per).map(Number).filter(c => per[c] > 0.5 && !used.has(c)).sort((a, b) => per[b] - per[a]).slice(0, 3).forEach(c => out.push(c));
-    const rs = Object.keys(rk).map(Number).sort((a, b) => rk[b] - rk[a]);
-    if (rs.length && rk[rs[0]] > 0.7) for (const s of (f.red ? [1, 2] : [0, 3])) { const c = (rs[0] << 2) | s; if (!out.includes(c) && !used.has(c)) out.push(c); }
-    return { sugg: out.slice(0, 4), red: f.red, used: [...used] };
+  // same card read twice at once is impossible: keep the more confident one
+  function dedupe(slots) {
+    const by = {};
+    slots.forEach(x => { if (x && x.c !== null && x.c !== undefined) (by[x.c] = by[x.c] || []).push(x); });
+    Object.values(by).forEach(l => {
+      if (l.length < 2) return; l.sort((a, b) => b.s - a.s);
+      l.slice(1).forEach(x => { const c = x.c; x.c = null; x.dup = true; x.part = { rank: c >> 2, suit: c & 3, rc: [c >> 2], sc: [c & 3] }; });
+    });
   }
-  function askLearn(z, f, grp, wrong) {
-    A.learning = true;
-    const r = px(z), cv = $('pickCrop');
-    const sc = Math.min(4, 110 / r.h);
-    cv.width = r.w * sc; cv.height = r.h * sc;
-    const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(srcC, r.x, r.y, r.w, r.h, 0, 0, cv.width, cv.height);
-    const fix = wrong !== undefined && wrong !== null;
-    const cb = c => {
-      // correction: forget the look-alike samples that were wrongly matched to the old card
-      if (fix && wrong !== c) A.lib = A.lib.filter(e => !(e.g === grp && e.c === wrong && e.f && e.f.r !== undefined && sim(f, e.f) > 0.8));
-      A.lib.push({ g: grp, c, f }); save(); A.learning = false; libInfo(); A.advKey = ''; tick(true);
+
+  /* ---------- fenêtre « Quelle est cette carte ? » : valeur + couleur ---------- */
+  const RANK_LBL = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'V', 'D', 'R', 'A'];
+  function openLearn(o) {
+    const need = o.need, sel = { rank: o.init && o.init.rank != null ? o.init.rank : null, suit: o.init && o.init.suit != null ? o.init.suit : null };
+    let all = false, touched = false;
+    $('lnTitle').textContent = o.title || 'Quelle est cette carte ?';
+    const cv = $('lnCrop'); cv.classList.toggle('hidden', !o.crop); if (o.crop) o.crop(cv);
+    $('lnRankBox').classList.toggle('hidden', !need.includes('rank'));
+    $('lnSuitBox').classList.toggle('hidden', !need.includes('suit'));
+    $('lnOk').classList.toggle('hidden', !!o.auto);
+    const close = () => { $('mLearn').classList.remove('on'); };
+    const finish = () => { close(); o.done(Object.assign({}, sel)); };
+    const maybe = () => { if (o.auto && need.every(k => sel[k] != null) && touched) finish(); };
+    const draw = () => {
+      const rr = $('lnRankRow'); rr.innerHTML = '';
+      for (let v = 12; v >= 0; v--) {
+        const b = document.createElement('button'); b.className = 'lnb' + (sel.rank === v ? ' on' : '') + ((o.sugg && o.sugg.rank || []).includes(v) ? ' sug' : '') + (o.init && o.init.rank === v ? ' cur' : '');
+        b.textContent = RANK_LBL[v]; b.onclick = () => { sel.rank = v; touched = true; draw(); maybe(); }; rr.appendChild(b);
+      }
+      const sr = $('lnSuitRow'); sr.innerHTML = '';
+      const list = all || o.red == null ? [0, 1, 2, 3] : o.red ? [1, 2] : [0, 3];
+      list.forEach(v => {
+        const b = document.createElement('button'); b.className = 'lnb' + (v === 1 || v === 2 ? ' r' : '') + (sel.suit === v ? ' on' : '') + ((o.sugg && o.sugg.suit || []).includes(v) ? ' sug' : '') + (o.init && o.init.suit === v ? ' cur' : '');
+        b.style.minWidth = '84px'; b.textContent = E.SUIT_SYM[v] + ' ' + SNAME_FR[v]; b.onclick = () => { sel.suit = v; touched = true; draw(); maybe(); }; sr.appendChild(b);
+      });
+      $('lnAllSuits').classList.toggle('hidden', all || o.red == null);
+      $('lnOk').disabled = !need.every(k => sel[k] != null);
+      $('lnMsg').textContent = o.msg || '';
     };
-    cb.cancel = () => { A.learning = false; };
-    const ex = suggest(f, grp);
-    if (fix) { ex.used.push(wrong); ex.sugg = ex.sugg.filter(c => c !== wrong); ex.title = `Corriger : cette carte lue « ${frCard(wrong)} » est en fait… ?`; }
-    openPick('learn', 0, cb, ex);
+    $('lnAllSuits').onclick = () => { all = true; draw(); };
+    $('lnOk').onclick = finish;
+    $('lnClose').onclick = () => { close(); o.cancel && o.cancel(); };
+    $('mLearn').onclick = e => { if (e.target.id === 'mLearn') { close(); o.cancel && o.cancel(); } };
+    draw(); $('mLearn').classList.add('on');
+  }
+  function cropZone(z) {
+    return cv => { const r = px(z), sc = Math.min(4, 110 / r.h); cv.width = r.w * sc; cv.height = r.h * sc; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(srcC, r.x, r.y, r.w, r.h, 0, 0, cv.width, cv.height); };
+  }
+  // u = { z, q, grp, part: {rank, suit, rc, sc} } : ask only what the recogniser could not decide
+  function askLearn(u) {
+    if (A.learning || !u || !u.q) return;
+    A.learning = true; A.asked = u; A.nAsked = (A.nAsked || 0) + 1;
+    const need = []; if (u.part.rank == null) need.push('rank'); if (u.part.suit == null) need.push('suit');
+    const noSuit = need.includes('suit') && !u.q.suit;
+    openLearn({
+      title: need.length === 2 ? 'Quelle est cette carte ?' : need[0] === 'rank' ? 'Quelle est la valeur de cette carte ?' : 'Quelle est la couleur de cette carte ?',
+      crop: cropZone(u.z), need, init: { rank: u.part.rank, suit: u.part.suit }, red: !!u.q.red,
+      sugg: { rank: u.part.rc || [], suit: u.part.sc || [] }, auto: true,
+      msg: noSuit ? 'Attention : la couleur n\'est pas visible dans la zone. Agrandis la zone vers le bas pour qu\'elle englobe le symbole.' : '',
+      done: sel => { learnParts(u.q, u.grp, need.includes('rank') ? sel.rank : null, need.includes('suit') ? sel.suit : null); save(); A.learning = false; A.advKey = ''; libInfo(); tick(true); },
+      cancel: () => { A.learning = false; },
+    });
+  }
+  // click on a displayed card to correct it
+  function fixSlot(x) {
+    if (A.learning || !x || !x.q) return;
+    A.learning = true;
+    const cur = x.c !== null && x.c !== undefined ? { rank: x.c >> 2, suit: x.c & 3 } : { rank: x.part ? x.part.rank : null, suit: x.part ? x.part.suit : null };
+    openLearn({
+      title: x.c != null ? `Corriger : lu « ${frCard(x.c)} » — c'est en fait… ?` : 'Quelle est cette carte ?',
+      crop: cropZone(x.z), need: ['rank', 'suit'], init: cur, red: !!x.q.red, auto: false,
+      sugg: { rank: x.part ? x.part.rc || [] : [], suit: x.part ? x.part.sc || [] : [] },
+      msg: x.q.suit ? '' : 'La couleur n\'est pas visible dans la zone : agrandis-la vers le bas.',
+      done: sel => {
+        // forget look-alike samples that voted for the wrong value / colour
+        if (cur.rank != null && sel.rank !== cur.rank && x.q.rank) A.rs = A.rs.filter(e => !(e.k === 'r' && e.v === cur.rank && rankScore(x.q.rank, e.f) > 0.75));
+        if (cur.suit != null && sel.suit !== cur.suit && x.q.suit) A.rs = A.rs.filter(e => !(e.k === 's' && e.v === cur.suit && suitScore(x.q.suit, e.f) > 0.75));
+        A.vote = {}; learnParts(x.q, x.grp, sel.rank, sel.suit); save(); A.learning = false; A.advKey = ''; libInfo(); tick(true);
+      },
+      cancel: () => { A.learning = false; },
+    });
   }
   function oppActive() {
     const ks = ZONES.map(z => z[0]).filter(k => k[0] === 'o' && A.zones[k]);
@@ -1589,6 +1786,7 @@ render();
     let board = readCards(bz, 'b', 'b');
     // board must be contiguous: stop at first empty slot
     const fe = board.findIndex(x => !x); if (fe >= 0) board = board.slice(0, fe);
+    dedupe(hero.concat(board));
     A.cur = { hero, board, opp: oppActive() };
     dealerCheck();
     ocrZones();
@@ -1630,7 +1828,7 @@ render();
     if (!callBlock && A.callOv == null && pre && call === 0 && A.cfg.pos !== 'BB' && !A.posAuto) {
       call = A.cfg.pos === 'SB' ? bbv / 2 : bbv; callNote = `lu 0 mais tu n'es pas en grosse blinde : je suppose ${fmt(call)} (corrige si besoin)`;
     }
-    const cardTxt = (a, g) => a.map((x, i) => x ? `<span class="fixc" data-fg="${g}" data-fi="${i}" title="Clique pour corriger cette carte">${x.c !== null ? frCard(x.c) : '??'}</span>` : '—').join(' · ') || '—';
+    const cardTxt = (a, g) => a.map((x, i) => x ? `<span class="fixc" data-fg="${g}" data-fi="${i}" title="Clique pour corriger cette carte">${x.c !== null ? frCard(x.c) : x.pending ? '…' : '??'}</span>` : '—').join(' · ') || '—';
     const typing = document.activeElement && document.activeElement.id === 'aCallIn';
     const liveHtml = `<table class="k">
       <tr><td>Mes cartes <div class="muted">(clique une carte pour la corriger)</div></td><td>${cardTxt(c.hero, 'h')}</td></tr>
@@ -1654,9 +1852,8 @@ render();
     }
     $('aLive').querySelectorAll('[data-fg]').forEach(el => el.onclick = () => {
       if (A.learning) return;
-      const g = el.dataset.fg, i = +el.dataset.fi;
-      const cc = A.cur || c, x = (g === 'h' ? cc.hero : cc.board)[i], z = (g === 'h' ? [A.zones.h1, A.zones.h2].filter(Boolean) : boardZones())[i];
-      if (x && x.f && z) askLearn(z, x.f, g, x.c);
+      const g = el.dataset.fg, i = +el.dataset.fi, cc = A.cur || c;
+      fixSlot((g === 'h' ? cc.hero : cc.board)[i]);
     });
     $('aLive').querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
       const d = +b.dataset.o;
@@ -1667,7 +1864,7 @@ render();
     const unkMsg = what => {
       const u = A.unk && A.unk.length;
       $('aAdv').innerHTML = `<div class="adv"><div class="muted">${u ? `${u} carte${u > 1 ? 's' : ''} non reconnue${u > 1 ? 's' : ''} (« ?? » ci-dessus). Identifie-la pour avoir le conseil.` : what}</div>${u ? '<button class="btn gold" id="aIdent" style="margin-top:8px">Identifier la carte</button>' : ''}</div>`;
-      const ib = $('aIdent'); if (ib) ib.onclick = () => { if (!A.learning && A.unk.length) askLearn(A.unk[0].z, A.unk[0].f, A.unk[0].grp); };
+      const ib = $('aIdent'); if (ib) ib.onclick = () => { if (!A.learning && A.unk.length) askLearn(A.unk[0]); };
     };
     if (!heroOk) { if (c.hero.length < 2) $('aAdv').innerHTML = `<div class="adv"><div class="muted">Zones « Ma carte 1/2 » à calibrer.</div></div>`; else unkMsg('En attente de tes cartes…'); A.advKey = ''; return; }
     if (!boardOk) { unkMsg('Lecture du tableau en cours…'); return; }
@@ -1799,8 +1996,8 @@ render();
     $('aZoneBtns').querySelectorAll('[data-z]').forEach(c => c.onclick = () => { A.sel = c.dataset.z; zoneBtns(); });
   }
   function libInfo() {
-    const nb = new Set(A.lib.filter(e => e.g === 'b').map(e => e.c)).size, nh = new Set(A.lib.filter(e => e.g === 'h').map(e => e.c)).size;
-    $('aLibInfo').textContent = `Cartes apprises : tableau ${nb}/52, main ${nh}/52`;
+    const nr = new Set(A.rs.filter(e => e.k === 'r').map(e => e.v)).size, ns = new Set(A.rs.filter(e => e.k === 's').map(e => e.v)).size;
+    $('aLibInfo').textContent = `Valeurs apprises : ${nr}/13 · couleurs : ${ns}/4` + (A.lib.length ? ` · anciennes cartes : ${A.lib.length}` : '');
     libUI();
   }
   function thumb(f) {
@@ -1809,13 +2006,60 @@ render();
     for (let i = 0; i < 352; i++) { const v = Math.min(1, f.w[i] || 0); for (let k = 0; k < 3; k++) im.data[4 * i + k] = Math.round(255 - (255 - col[k]) * v); im.data[4 * i + 3] = 255; }
     x.putImageData(im, 0, 0); return c;
   }
+  function thumbG(g, w, h, red) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h; c.className = 'thumb'; c.style.cssText = `width:${w * 4}px;height:${h * 4}px`;
+    const x = c.getContext('2d'), im = x.createImageData(w, h), col = red ? [200, 30, 40] : [20, 20, 20];
+    for (let i = 0; i < w * h; i++) { const v = Math.min(1, g[i] || 0); for (let k = 0; k < 3; k++) im.data[4 * i + k] = Math.round(255 - (255 - col[k]) * v); im.data[4 * i + 3] = 255; }
+    x.putImageData(im, 0, 0); return c;
+  }
+  const GN = { h0: 'Main 1', h1: 'Main 2', b: 'Tableau', h: 'Main' };
   function libUI() {
     if (!$('aLibD').open) return;
+    const mode = A.libMode || 'r';
+    $('aAutoAsk').checked = A.cfg.autoAsk !== false;
+    const nr = new Set(A.rs.filter(e => e.k === 'r').map(e => e.v)).size, ns = new Set(A.rs.filter(e => e.k === 's').map(e => e.v)).size;
+    $('aLibMode').innerHTML = [['r', `Valeurs (${nr}/13)`], ['s', `Couleurs (${ns}/4)`], ['old', `Anciennes cartes (${A.lib.length})`]].map(([k, l]) => `<span class="chip ${mode === k ? 'on' : ''}" data-m="${k}">${l}</span>`).join('');
+    $('aLibMode').querySelectorAll('[data-m]').forEach(el => el.onclick = () => { A.libMode = el.dataset.m; A.libSel = null; A.rsSel = null; libUI(); });
+    const old = mode === 'old';
+    $('aLibG').classList.toggle('hidden', !old); $('aLibCopy').classList.toggle('hidden', !old); $('aLibInfo2').classList.toggle('hidden', !old);
+    if (old) return libUIOld();
+    const grid = $('aLibGrid'), dt = $('aLibDetail'); grid.innerHTML = ''; dt.innerHTML = '';
+    grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px';
+    const k = mode, vals = k === 'r' ? [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3];
+    vals.forEach(v => {
+      const n = A.rs.filter(e => e.k === k && e.v === v).length, b = document.createElement('button');
+      b.className = 'lnb' + (k === 's' && (v === 1 || v === 2) ? ' r' : '') + (A.rsSel === v ? ' on' : ''); b.style.position = 'relative';
+      if (k === 's') b.style.minWidth = '84px';
+      b.textContent = k === 'r' ? RANK_LBL[v] : E.SUIT_SYM[v] + ' ' + SNAME_FR[v];
+      if (!n) b.style.opacity = '.3'; else b.insertAdjacentHTML('beforeend', `<span class="n" style="position:absolute;right:1px;bottom:0;font-size:10px;background:#1d5a3c;color:#fff;border-radius:6px;padding:0 3px">${n}</span>`);
+      b.onclick = () => { A.rsSel = v; libUI(); }; grid.appendChild(b);
+    });
+    if (A.rsSel != null) {
+      const ents = A.rs.filter(e => e.k === k && e.v === A.rsSel);
+      const h = document.createElement('div'); h.className = 'muted'; h.innerHTML = `<b>${k === 'r' ? 'Valeur ' + RANK_LBL[A.rsSel] : SNAME_FR[A.rsSel]}</b> — ${ents.length} exemple${ents.length > 1 ? 's' : ''}`; dt.appendChild(h);
+      const row = document.createElement('div'); row.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;margin-top:6px'; dt.appendChild(row);
+      ents.forEach(e => {
+        const w = document.createElement('div'); w.style.cssText = 'display:flex;flex-direction:column;gap:4px;align-items:center';
+        w.appendChild(thumbG(e.f.g, 12, k === 'r' ? 16 : 12, k === 's' ? (e.v === 1 || e.v === 2) : (e.f.red || false)));
+        const t = document.createElement('span'); t.className = 'muted'; t.textContent = GN[e.g] || e.g; w.appendChild(t);
+        const mk = (tx, fn) => { const bt = document.createElement('button'); bt.className = 'btn sm'; bt.textContent = tx; bt.onclick = fn; w.appendChild(bt); };
+        mk('Autre…', () => {
+          if (A.learning) return; A.learning = true;
+          openLearn({ title: `Cet exemple (appris « ${k === 'r' ? RANK_LBL[e.v] : SNAME_FR[e.v]} ») est en fait…`, need: [k === 'r' ? 'rank' : 'suit'], init: { rank: k === 'r' ? e.v : null, suit: k === 's' ? e.v : null }, red: k === 's' ? (e.v === 1 || e.v === 2) : null, auto: true,
+            crop: cv => { cv.width = 48; cv.height = k === 'r' ? 64 : 48; cv.getContext('2d').drawImage(thumbG(e.f.g, 12, k === 'r' ? 16 : 12, k === 's' ? (e.v === 1 || e.v === 2) : false), 0, 0, cv.width, cv.height); },
+            done: sel => { e.v = k === 'r' ? sel.rank : sel.suit; A.rsSel = e.v; save(); A.learning = false; A.advKey = ''; libInfo(); }, cancel: () => { A.learning = false; } });
+        });
+        mk('Supprimer', () => { A.rs = A.rs.filter(x => x !== e); save(); A.advKey = ''; libInfo(); });
+        row.appendChild(w);
+      });
+    }
+  }
+  function libUIOld() {
     const g = A.libG || 'h', og = g === 'h' ? 'b' : 'h', gn = k => k === 'h' ? 'Main' : 'Tableau';
-    $('aShare').checked = A.cfg.share !== false; $('aAutoAsk').checked = A.cfg.autoAsk !== false;
+    $('aAutoAsk').checked = A.cfg.autoAsk !== false;
     $('aLibG').innerHTML = ['h', 'b'].map(k => `<span class="chip ${g === k ? 'on' : ''}" data-g="${k}">${gn(k)} (${new Set(A.lib.filter(e => e.g === k).map(e => e.c)).size}/52)</span>`).join('');
     $('aLibG').querySelectorAll('[data-g]').forEach(el => el.onclick = () => { A.libG = el.dataset.g; A.libSel = null; libUI(); });
-    const grid = $('aLibGrid'); grid.innerHTML = '';
+    const grid = $('aLibGrid'); grid.innerHTML = ''; grid.style.cssText = '';
     const cnt = {}; A.lib.forEach(e => { if (e.g === g) cnt[e.c] = (cnt[e.c] || 0) + 1; });
     for (let s = 0; s < 4; s++) for (let r = 12; r >= 0; r--) {
       const c = (r << 2) | s, el = cardEl(c, () => { A.libSel = c; libUI(); });
@@ -1855,31 +2099,33 @@ render();
   $('aCal').addEventListener('toggle', drawOverlay);
   $('aClearZone').onclick = () => { delete A.zones[A.sel]; save(); zoneBtns(); tick(true); };
   let clr = 0;
-  $('aClearLib').onclick = () => { if (Date.now() - clr > 3000) { clr = Date.now(); $('aClearLib').textContent = 'Confirmer ?'; setTimeout(() => $('aClearLib').textContent = 'Oublier les cartes apprises', 3000); return; } A.lib = []; save(); libInfo(); $('aClearLib').textContent = 'Oublier les cartes apprises'; };
+  $('aClearLib').onclick = () => { if (Date.now() - clr > 3000) { clr = Date.now(); $('aClearLib').textContent = 'Confirmer ?'; setTimeout(() => $('aClearLib').textContent = 'Oublier les cartes apprises', 3000); return; } A.lib = []; A.rs = []; A.vote = {}; A.hist = {}; save(); libInfo(); $('aClearLib').textContent = 'Oublier les cartes apprises'; };
   const bindCfg = (id, k, num) => { const el = $(id); el.value = A.cfg[k]; el.onchange = () => { A.cfg[k] = num ? parseFloat(el.value) : el.value; save(); A.advKey = ''; tick(true); }; };
   bindCfg('aBB', 'bb', true); bindCfg('aStyle', 'style', true); bindCfg('aFoldMode', 'foldMode'); bindCfg('aInt', 'interval', true); bindCfg('aThr', 'thr', true); bindCfg('aNum', 'num');
   /* ---------- export / import ---------- */
   $('aExp').onclick = () => {
-    const data = { app: 'poker-conseiller', v: 1, date: new Date().toISOString(), zones: A.zones, lib: A.lib, cfg: A.cfg, dtpl: A.dtpl || null };
+    const data = { app: 'poker-conseiller', v: 1, date: new Date().toISOString(), zones: A.zones, lib: A.lib, rs: A.rs, cfg: A.cfg, dtpl: A.dtpl || null };
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
     a.download = 'poker-memoire-' + new Date().toISOString().slice(0, 10) + '.json';
     document.body.appendChild(a); a.click(); a.remove();
-    $('aBkInfo').textContent = `Exporté : ${A.lib.length} exemples de cartes, ${Object.keys(A.zones).length} zones.`;
+    $('aBkInfo').textContent = `Exporté : ${A.rs.length} exemples de valeurs/couleurs, ${A.lib.length} anciennes cartes, ${Object.keys(A.zones).length} zones.`;
   };
+  const validRs = arr => (Array.isArray(arr) ? arr : []).filter(x => x && (x.k === 'r' || x.k === 's') && Number.isInteger(x.v) && x.v >= 0 && x.v < (x.k === 'r' ? 13 : 4) && typeof x.g === 'string' && x.f && Array.isArray(x.f.g) && x.f.g.length === (x.k === 'r' ? 192 : 144) && typeof x.f.ar === 'number');
   $('aImpAdd').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     try {
       const d = JSON.parse(await f.text());
       if (!d || d.app !== 'poker-conseiller' || !Array.isArray(d.lib)) throw new Error('fichier non reconnu');
       const ok = x => x && (x.g === 'h' || x.g === 'b') && Number.isInteger(x.c) && x.c >= 0 && x.c < 52 && x.f && Array.isArray(x.f.r) && Array.isArray(x.f.w) && x.f.w.length === 352;
-      let added = 0, dup = 0;
+      let added = 0, dup = 0, bad = d.lib.length - d.lib.filter(ok).length;
       for (const x of d.lib.filter(ok)) {
         if (A.lib.some(e => e.g === x.g && e.c === x.c && e.f && e.f.r !== undefined && e.f.red === x.f.red && sim(e.f, x.f) > 0.99)) { dup++; continue; } // already known
         A.lib.push({ g: x.g, c: x.c, f: x.f }); added++;
       }
+      for (const x of validRs(d.rs)) if (addSample(x.k, x.v, x.g, x.f)) added++; else dup++;
       A.advKey = ''; save(); libInfo(); tick(true);
-      $('aBkInfo').textContent = `${added} exemple(s) ajouté(s)` + (dup ? `, ${dup} déjà connu(s)` : '') + (d.lib.length - added - dup ? `, ${d.lib.length - added - dup} ignoré(s)` : '') + '. Zones et réglages inchangés.';
+      $('aBkInfo').textContent = `${added} exemple(s) ajouté(s)` + (dup ? `, ${dup} déjà connu(s)` : '') + (bad ? `, ${bad} ignoré(s)` : '') + '. Zones et réglages inchangés.';
     } catch (err) { $('aBkInfo').textContent = 'Import impossible : ' + (err.message || err); }
   };
   $('aImp').onchange = async e => {
@@ -1890,16 +2136,15 @@ render();
       const ok = x => x && (x.g === 'h' || x.g === 'b') && Number.isInteger(x.c) && x.c >= 0 && x.c < 52 && x.f && Array.isArray(x.f.r) && Array.isArray(x.f.w) && x.f.w.length === 352;
       const lib = d.lib.filter(ok);
       if (!confirm(`Importer ${lib.length} exemples de cartes et ${Object.keys(d.zones || {}).length} zones ?\nCela REMPLACE ta mémoire actuelle (${A.lib.length} exemples, ${Object.keys(A.zones).length} zones).`)) return;
-      A.lib = lib; A.zones = d.zones && typeof d.zones === 'object' ? d.zones : {}; A.dtpl = d.dtpl && Array.isArray(d.dtpl.g) ? d.dtpl : null;
+      A.lib = lib; A.rs = validRs(d.rs); A.vote = {}; A.zones = d.zones && typeof d.zones === 'object' ? d.zones : {}; A.dtpl = d.dtpl && Array.isArray(d.dtpl.g) ? d.dtpl : null;
       if (d.cfg && typeof d.cfg === 'object') Object.assign(A.cfg, d.cfg);
       A.hist = {}; A.ocrSig = {}; A.advKey = ''; A.dSig = null; save();
       [['aBB', 'bb'], ['aStyle', 'style'], ['aFoldMode', 'foldMode'], ['aInt', 'interval'], ['aThr', 'thr'], ['aNum', 'num']].forEach(([id, k]) => $(id).value = A.cfg[k]);
       zoneBtns(); libInfo(); drawOverlay(); tick(true);
-      $('aBkInfo').textContent = `Importé : ${lib.length} exemples, ${Object.keys(A.zones).length} zones.` + (lib.length < d.lib.length ? ` (${d.lib.length - lib.length} ignorés)` : '');
+      $('aBkInfo').textContent = `Importé : ${A.rs.length} exemples de valeurs/couleurs, ${lib.length} anciennes cartes, ${Object.keys(A.zones).length} zones.` + (lib.length < d.lib.length ? ` (${d.lib.length - lib.length} ignorés)` : '');
     } catch (err) { $('aBkInfo').textContent = 'Import impossible : ' + (err.message || err); }
   };
   $('aLibD').addEventListener('toggle', libUI);
-  $('aShare').onchange = e => { A.cfg.share = e.target.checked; save(); A.advKey = ''; };
   $('aAutoAsk').onchange = e => { A.cfg.autoAsk = e.target.checked; save(); };
   $('aLibCopy').onclick = () => {
     const g = A.libG || 'h', og = g === 'h' ? 'b' : 'h', have = new Set(A.lib.filter(e => e.g === og).map(e => e.c));
