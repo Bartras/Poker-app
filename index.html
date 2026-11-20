@@ -174,7 +174,8 @@ body.auto main>section:not(#pAuto){display:none}
     <p class="muted">Enregistre dans un fichier tes cartes apprises, tes zones calibrées, le bouton D et tes réglages. Utile avant de vider le navigateur ou pour passer sur un autre appareil.</p>
     <div class="row">
       <button class="btn sm gold" id="aExp">⬇ Exporter</button>
-      <label class="btn sm" style="display:flex;align-items:center">⬆ Importer<input type="file" id="aImp" accept=".json,application/json" hidden></label>
+      <label class="btn sm" style="display:flex;align-items:center" title="Ajoute les cartes du fichier à celles déjà apprises (zones et réglages inchangés)">⬆ Importer (ajouter les cartes)<input type="file" id="aImpAdd" accept=".json,application/json" hidden></label>
+      <label class="btn sm red" style="display:flex;align-items:center" title="Remplace tout : cartes, zones, bouton D, réglages">⬆ Importer (tout remplacer)<input type="file" id="aImp" accept=".json,application/json" hidden></label>
       <span class="muted" id="aBkInfo"></span>
     </div>
   </details>
@@ -1865,6 +1866,21 @@ render();
     a.download = 'poker-memoire-' + new Date().toISOString().slice(0, 10) + '.json';
     document.body.appendChild(a); a.click(); a.remove();
     $('aBkInfo').textContent = `Exporté : ${A.lib.length} exemples de cartes, ${Object.keys(A.zones).length} zones.`;
+  };
+  $('aImpAdd').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      if (!d || d.app !== 'poker-conseiller' || !Array.isArray(d.lib)) throw new Error('fichier non reconnu');
+      const ok = x => x && (x.g === 'h' || x.g === 'b') && Number.isInteger(x.c) && x.c >= 0 && x.c < 52 && x.f && Array.isArray(x.f.r) && Array.isArray(x.f.w) && x.f.w.length === 352;
+      let added = 0, dup = 0;
+      for (const x of d.lib.filter(ok)) {
+        if (A.lib.some(e => e.g === x.g && e.c === x.c && e.f && e.f.r !== undefined && e.f.red === x.f.red && sim(e.f, x.f) > 0.99)) { dup++; continue; } // already known
+        A.lib.push({ g: x.g, c: x.c, f: x.f }); added++;
+      }
+      A.advKey = ''; save(); libInfo(); tick(true);
+      $('aBkInfo').textContent = `${added} exemple(s) ajouté(s)` + (dup ? `, ${dup} déjà connu(s)` : '') + (d.lib.length - added - dup ? `, ${d.lib.length - added - dup} ignoré(s)` : '') + '. Zones et réglages inchangés.';
+    } catch (err) { $('aBkInfo').textContent = 'Import impossible : ' + (err.message || err); }
   };
   $('aImp').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
