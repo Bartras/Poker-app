@@ -10,16 +10,29 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const gifts = collection(db, "gifts");
 
+const PEOPLE = { thibaut: "Thibaut", sara: "Sara", sohan: "Sohan" };
+let current = PEOPLE[location.hash.slice(1)] ? location.hash.slice(1) : "thibaut";
 let isAdmin = false, items = [], editingId = null, pendingImageData = null;
 
 const safeUrl = u => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : ""; } catch { return ""; } };
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); kids.forEach(k => e.append(k)); return e; };
 
 // ---------- Rendu ----------
+const ownerOf = g => PEOPLE[g.owner] ? g.owner : "thibaut"; // anciens cadeaux sans champ owner
+function renderTabs() {
+  $("tabs").replaceChildren(...Object.entries(PEOPLE).map(([k, n]) => {
+    const b = el("button", { className: "tab" + (k === current ? " active" : ""), textContent: `${n} (${items.filter(g => ownerOf(g) === k).length})` });
+    b.onclick = () => { current = k; location.hash = k; render(); };
+    return b;
+  }));
+  document.title = "Liste de Noël de " + PEOPLE[current];
+}
 function render() {
+  renderTabs();
   const grid = $("grid"); grid.replaceChildren();
-  $("status").textContent = items.length ? "" : "Aucun cadeau pour l'instant.";
-  for (const g of items) {
+  const shown = items.filter(g => ownerOf(g) === current);
+  $("status").textContent = shown.length ? "" : "Aucun cadeau pour l'instant.";
+  for (const g of shown) {
     const img = el("div", { className: "img" + (g.imageIsData ? "" : " cover") });
     const src = g.image && (g.image.startsWith("data:image/") ? g.image : safeUrl(g.image));
     if (src) img.style.backgroundImage = `url("${src}")`;
@@ -88,10 +101,12 @@ $("logoutBtn").onclick = () => signOut(auth);
 onAuthStateChanged(auth, u => { isAdmin = !!u; $("adminBar").hidden = !isAdmin; render(); });
 
 // ---------- Admin : ajout / édition ----------
+$("gOwner").replaceChildren(...Object.entries(PEOPLE).map(([k, n]) => el("option", { value: k, textContent: n })));
 $("addBtn").onclick = () => openGift(null);
 function openGift(g) {
   editingId = g?.id || null; pendingImageData = null;
   $("giftDlgTitle").textContent = g ? "Modifier le cadeau" : "Ajouter un cadeau";
+  $("gOwner").value = g ? ownerOf(g) : current;
   $("gUrl").value = g?.url || ""; $("gTitle").value = g?.title || ""; $("gPrice").value = g?.price || "";
   $("gNote").value = g?.note || ""; $("gImage").value = g && !g.imageIsData ? (g.image || "") : "";
   $("gFile").value = ""; $("fetchMsg").textContent = "";
@@ -129,6 +144,7 @@ $("gFile").onchange = async () => {
 $("giftForm").onsubmit = async () => {
   const image = pendingImageData || safeUrl($("gImage").value) || (editingId ? items.find(i => i.id === editingId)?.image || "" : "");
   const data = {
+    owner: $("gOwner").value,
     url: safeUrl($("gUrl").value), title: $("gTitle").value.trim(), price: $("gPrice").value.trim(),
     note: $("gNote").value.trim(), image, imageIsData: image.startsWith("data:image/")
   };

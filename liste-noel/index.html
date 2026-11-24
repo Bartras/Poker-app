@@ -8,8 +8,9 @@
 </head>
 <body>
 <header>
-  <h1>🎄 Ma liste de Noël</h1>
+  <h1>🎄 Listes de Noël</h1>
   <p class="sub">Une idée de cadeau ? Clique sur « Je l'offre » pour que personne d'autre ne l'achète.</p>
+  <nav id="tabs" class="tabs"></nav>
 </header>
 
 <main>
@@ -48,6 +49,7 @@
 <dialog id="giftDlg">
   <form method="dialog" id="giftForm">
     <h2 id="giftDlgTitle">Ajouter un cadeau</h2>
+    <label>Pour qui ? <select id="gOwner"></select></label>
     <label>Lien du produit
       <span class="inline"><input id="gUrl" type="url" placeholder="https://…" required><button type="button" class="btn" id="fetchBtn">Récupérer</button></span>
     </label>
